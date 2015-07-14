@@ -100,19 +100,22 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 	else if (str_starts_with(line, "call"))
 	{
 		char function_name[64];
-		if (sscanf(line, "call %63s", &function_name) != 1)
+		if (sscanf(line, "call %63s i%u o%u", &function_name, &source2, &destination) != 1)
 			return ~0;
 
-		uint32_t function_index = find_function_index(function_name, function_list);
+		source1 = find_function_index(function_name, function_list);
 
-		if (function_index == ~0)
+		if (source1 == ~0)
 			return ~0;
 
-		return dsh_emit_instruction(dsh_opcode_call, 0, 0, function_index);
+		return dsh_emit_instruction(dsh_opcode_call, source1, source2, destination);
 	}
 	else if (str_starts_with(line, "ret"))
 	{
-		return dsh_emit_instruction(dsh_opcode_ret, 0, 0, 0);
+		if (sscanf(line, "ret o%u", &source1) != 1)
+			return ~0;
+
+		return dsh_emit_instruction(dsh_opcode_ret, source1, 0, 0);
 	}
 	else if (str_starts_with(line, "mov"))
 	{
@@ -122,49 +125,18 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 	}
 	else if (str_starts_with(line, "jmp"))
 	{
-		return dsh_emit_instruction(dsh_opcode_jmp, 0, 0, 0);
-	}
-	else if (str_starts_with(line, "jmpe"))
-	{
-		return dsh_emit_instruction(dsh_opcode_jmpe, 0, 0, 0);
-	}
-	else if (str_starts_with(line, "jmpl"))
-	{
-		return dsh_emit_instruction(dsh_opcode_jmpl, 0, 0, 0);
-	}
-	else if (str_starts_with(line, "jmpg"))
-	{
-		return dsh_emit_instruction(dsh_opcode_jmpg, 0, 0, 0);
-	}
-	else if (str_starts_with(line, "cmpi"))
-	{
-		if (sscanf(line, "cmpi r%u r%u r%u", &source1, &source2, &destination) != 3)
+		int offset;
+
+		if (sscanf(line, "jmp %d", &offset) != 1)
 			return ~0;
-		return dsh_emit_instruction(dsh_opcode_cmpi, source1, source2, destination);
-	}
-	else if (str_starts_with(line, "cmpu"))
-	{
-		if (sscanf(line, "cmpu r%u r%u r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_cmpu, source1, source2, destination);
-	}
-	else if (str_starts_with(line, "cmpf"))
-	{
-		if (sscanf(line, "cmpf r%u r%u r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_cmpf, source1, source2, destination);
+
+		return dsh_emit_instruction(dsh_opcode_jmp, 0, 0, *(uint8_t *)&offset);
 	}
 	else if (str_starts_with(line, "addi"))
 	{
 		if (sscanf(line, "addi r%u r%u -> r%u", &source1, &source2, &destination) != 3)
 			return ~0;
 		return dsh_emit_instruction(dsh_opcode_addi, source1, source2, destination);
-	}
-	else if (str_starts_with(line, "addu"))
-	{
-		if (sscanf(line, "addu r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_addu, source1, source2, destination);
 	}
 	else if (str_starts_with(line, "addf"))
 	{
@@ -178,12 +150,6 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 			return ~0;
 		return dsh_emit_instruction(dsh_opcode_subi, source1, source2, destination);
 	}
-	else if (str_starts_with(line, "subu"))
-	{
-		if (sscanf(line, "subu r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_subu, source1, source2, destination);
-	}
 	else if (str_starts_with(line, "subf"))
 	{
 		if (sscanf(line, "subf r%u r%u -> r%u", &source1, &source2, &destination) != 3)
@@ -196,12 +162,6 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 			return ~0;
 		return dsh_emit_instruction(dsh_opcode_muli, source1, source2, destination);
 	}
-	else if (str_starts_with(line, "mulu"))
-	{
-		if (sscanf(line, "mulu r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_mulu, source1, source2, destination);
-	}
 	else if (str_starts_with(line, "mulf"))
 	{
 		if (sscanf(line, "mulf r%u r%u -> r%u", &source1, &source2, &destination) != 3)
@@ -213,12 +173,6 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 		if (sscanf(line, "divi r%u r%u -> r%u", &source1, &source2, &destination) != 3)
 			return ~0;
 		return dsh_emit_instruction(dsh_opcode_divi, source1, source2, destination);
-	}
-	else if (str_starts_with(line, "divu"))
-	{
-		if (sscanf(line, "divu r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_divu, source1, source2, destination);
 	}
 	else if (str_starts_with(line, "divf"))
 	{
@@ -404,9 +358,9 @@ int dsh_assemble(const char *assembly_filename, const char *obj_filename)
 
 	while (current != NULL)
 	{
-		fwrite(&current->reg_count_in, sizeof(uint16_t), 1, ops_file);
-		fwrite(&current->reg_count_use, sizeof(uint16_t), 1, ops_file);
-		fwrite(&current->reg_count_out, sizeof(uint16_t), 1, ops_file);
+		fwrite(&current->reg_count_in, sizeof(uint8_t), 1, ops_file);
+		fwrite(&current->reg_count_use, sizeof(uint8_t), 1, ops_file);
+		fwrite(&current->reg_count_out, sizeof(uint8_t), 1, ops_file);
 		fwrite(&current->bytecode_start, sizeof(uint32_t), 1, ops_file);
 		fwrite(&current->bytecode_end, sizeof(uint32_t), 1, ops_file);
 

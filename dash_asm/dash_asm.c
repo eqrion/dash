@@ -10,5 +10,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dsh_assemble(argv[1], argv[2]);
+	dsh_assemble(argv[1], argv[2]);
+
+	return;
 }

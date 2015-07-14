@@ -3,12 +3,12 @@
 
 #include <stdint.h>
 
-struct dsh_obj;
+struct dsh_lib;
 
-int dsh_load_obj(struct dsh_obj **obj, const char *dob_file);
+int dsh_load_lib(struct dsh_lib **lib, const char *dib_file);
 
-int dsh_exec_obj(struct dsh_obj *obj, uint32_t function_index, const uint32_t *in_registers, uint32_t *out_registers);
+int dsh_exec_func(struct dsh_lib *lib, uint32_t function_index, const uint32_t *in_registers, uint32_t *out_registers);
 
-void dsh_destroy_obj(struct dsh_obj *obj);
+void dsh_destroy_lib(struct dsh_lib *lib);
 
 #endif

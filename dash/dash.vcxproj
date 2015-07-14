@@ -14,6 +14,7 @@
     <ClInclude Include="include\dash\assembler.h" />
     <ClInclude Include="include\dash\vm.h" />
     <ClInclude Include="src\opcode.h" />
+    <ClInclude Include="src\stack.h" />
     <ClInclude Include="src\string.h" />
   </ItemGroup>
   <ItemGroup>
