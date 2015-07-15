@@ -12,8 +12,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\dash\assembler.h" />
+    <ClInclude Include="include\dash\var.h" />
     <ClInclude Include="include\dash\vm.h" />
-    <ClInclude Include="src\opcode.h" />
+    <ClInclude Include="src\bytecode.h" />
     <ClInclude Include="src\stack.h" />
     <ClInclude Include="src\string.h" />
   </ItemGroup>
@@ -70,6 +71,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>$(ProjectDir)include/</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -86,6 +88,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>$(ProjectDir)include/</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

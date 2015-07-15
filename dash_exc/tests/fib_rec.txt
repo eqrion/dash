@@ -1,0 +1,22 @@
+# fibonnaci
+#	in (1): term no
+#	out (1): result
+#	use (0)
+
+# fib(1) = 1
+# fib(2) = 1
+# fib(n) = fib(n - 1) + fib(n - 2)
+
+.dash_function fib_rec in1r use2r out1r
+
+mov 1 -> r2
+
+jmpi r0 <= 2 6
+
+subi r0 1 -> r1
+subi r0 2 -> r2
+call fib_rec r1 -> r1
+call fib_rec r2 -> r2
+addi r1 r2 -> r2
+
+ret r2

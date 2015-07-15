@@ -1,4 +1,6 @@
-#include "opcode.h"
+#include "dash/vm.h"
+
+#include "bytecode.h"
 #include "stack.h"
 
 #include <stdlib.h>
@@ -92,7 +94,7 @@ int dsh_load_lib(struct dsh_lib **obj, const char *dob_file)
 	// Extract the amount of functions and instructions present in this dob_file
 
 	result->function_count = dob_function_count;
-	fseek(obj_file, -(int)(result->function_count) * (sizeof(uint32_t) * 2 + sizeof(uint16_t) * 3) - (int)sizeof(uint32_t) * 2, SEEK_CUR);
+	fseek(obj_file, -(int)(result->function_count) * (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 3) - (int)sizeof(uint32_t) * 2, SEEK_CUR);
 	result->bytecode_count = ftell(obj_file) / 4;
 
 	// Read in the function definitions
@@ -154,7 +156,7 @@ int dsh_load_lib(struct dsh_lib **obj, const char *dob_file)
 	return 1;
 }
 
-int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_registers, uint32_t *out_registers)
+int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const dsh_var *func_parameters, dsh_var *func_results)
 {
 	if (func_index >= lib->function_count)
 	{
@@ -162,9 +164,12 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 		return 0;
 	}
 
-	struct dsh_function_def *cur_func = &lib->function[func_index];
-	uint32_t cur_pc = cur_func->bytecode_start;
-	uint32_t cur_stack_size = cur_func->reg_count_in + cur_func->reg_count_use;
+	// Execution variables 
+
+	uint32_t					cur_func_index = func_index;
+	struct dsh_function_def    *cur_func = &lib->function[func_index];
+	uint32_t					cur_pc = cur_func->bytecode_start;
+	uint32_t					cur_frame_size = cur_func->reg_count_in + cur_func->reg_count_use;
 
 	// Allocate the stack for use in executing this function
 
@@ -177,23 +182,21 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 		return 0;
 	}
 	
-	// Make room for the first function
+	// Push the first function's registers, and parameters over
 
-	if (!dsh_stack_push(&stack, cur_stack_size))
+	if (!dsh_stack_push(&stack, cur_frame_size))
 	{
 		fprintf(stderr, "stack overflow error.\n");
 		return 0;
 	}
 
-	// Copy the first parameters over
-
 	memcpy(
 		stack.reg_current,
-		in_registers,
+		func_parameters,
 		sizeof(dsh_var) * cur_func->reg_count_in
 		);
 
-	// Begin execution of the bytecode
+	// Bytecode execution main loop
 
 	while (1)
 	{
@@ -213,9 +216,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 		case dsh_opcode_call:
 		{
 			// Validate the operands:
-			//		source1 -> func_index
-			//		source2 -> in_register_start
-			//		destination -> out_register_start
+			//		source1 -> call_func_index
+			//		source2 -> call_in_register_start
+			//		destination -> call_out_register_start
 
 			if (source1 >= lib->function_count)
 			{
@@ -225,15 +228,15 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			struct dsh_function_def *next_func = &lib->function[source1];
 
-			if (source2 >= cur_stack_size ||
-				source2 + next_func->reg_count_in > cur_stack_size)
+			if (source2 >= cur_frame_size ||
+				source2 + next_func->reg_count_in > cur_frame_size)
 			{
 				fprintf(stderr, "invalid register range for function parameters.\n");
 				goto execution_error;
 			}
 
-			if (destination >= cur_stack_size ||
-				destination + next_func->reg_count_out > cur_stack_size)
+			if (destination >= cur_frame_size ||
+				destination + next_func->reg_count_out > cur_frame_size)
 			{
 				fprintf(stderr, "invalid register range for return data.\n");
 				goto execution_error;
@@ -241,7 +244,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			// Grab the pointer for where to get the parameters, before we push an activation record
 
-			uint32_t *reg_in_start = &stack.reg_current[source2];
+			dsh_var *reg_in_start = &stack.reg_current[source2];
 
 			// Push space for an activation record
 
@@ -251,19 +254,19 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 				goto execution_error;
 			}
 
-			stack.reg_current[0].u = cur_stack_size;
-			stack.reg_current[1].u = func_index;
+			stack.reg_current[0].u = cur_frame_size;
+			stack.reg_current[1].u = cur_func_index;
 			stack.reg_current[2].u = destination;
 			stack.reg_current[3].u = cur_pc;
 
 			// Switch to the new function
 
-			func_index = source1;
+			cur_func_index = source1;
 			cur_func = next_func;
-			cur_pc = cur_func->bytecode_start;
-			cur_stack_size = cur_func->reg_count_in + cur_func->reg_count_use;
+			cur_pc = next_func->bytecode_start;
+			cur_frame_size = next_func->reg_count_in + next_func->reg_count_use;
 
-			if (!dsh_stack_push(&stack, cur_stack_size))
+			if (!dsh_stack_push(&stack, cur_frame_size))
 			{
 				fprintf(stderr, "stack overflow error.\n");
 				goto execution_error;
@@ -271,7 +274,11 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			// Copy the parameters over
 
-			memcpy(stack.reg_current, reg_in_start, sizeof(uint32_t) * cur_func->reg_count_in);
+			memcpy(
+				stack.reg_current,
+				reg_in_start,
+				sizeof(dsh_var) * cur_func->reg_count_in
+				);
 
 			// Skip over the pc increment and continue on
 
@@ -281,10 +288,8 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 		{
 			// Validate the operands (source1 = reg_out_start)
 
-			if (
-				source1 >= cur_stack_size ||
-				source1 + cur_func->reg_count_out > cur_stack_size
-				)
+			if (source1 >= cur_frame_size ||
+				source1 + cur_func->reg_count_out > cur_frame_size)
 			{
 				fprintf(stderr, "invalid register range for result registers.\n");
 				goto execution_error;
@@ -292,11 +297,11 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			// Grab a pointer to the source for return data
 
-			uint32_t *reg_out_start = &stack.reg_current[source1];
+			dsh_var *reg_out_start = &stack.reg_current[source1];
 
 			// Pop this function's registers off the stack
 
-			if (!dsh_stack_pop(&stack, cur_stack_size))
+			if (!dsh_stack_pop(&stack, cur_frame_size))
 			{
 				fprintf(stderr, "stack underflow error.\n");
 				goto execution_error;
@@ -308,17 +313,18 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			if (stack.reg_current == stack.reg_bottom)
 			{
 				memcpy(
-					out_registers,
+					func_results,
 					reg_out_start,
-					sizeof(uint32_t) * cur_func->reg_count_out
+					sizeof(dsh_var) * cur_func->reg_count_out
 					);
+
 				goto execution_over;
 			}
 
 			// We need to return back to our previous function,
 			// grab the activation record from the stack and pop past it
 
-			dsh_var returning_func_stack_size = stack.reg_current[0];
+			dsh_var returning_func_frame_size = stack.reg_current[0];
 			dsh_var returning_func_index = stack.reg_current[1];
 			dsh_var returning_func_result_dest = stack.reg_current[2];
 			dsh_var returning_cur_pc = stack.reg_current[3];
@@ -335,19 +341,19 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			memcpy(
 				stack.reg_current + returning_func_result_dest.u,
 				reg_out_start,
-				sizeof(uint32_t) * cur_func->reg_count_out
+				sizeof(dsh_var) * cur_func->reg_count_out
 				);
 
 			func_index = returning_func_index.u;
 			cur_func = &lib->function[func_index];
-			cur_stack_size = returning_func_stack_size.u;
+			cur_frame_size = returning_func_frame_size.u;
 			cur_pc = returning_cur_pc.u;
 
 			break;
 		}
 		case dsh_opcode_mov:
 		{
-			if (source1 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -357,13 +363,24 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
+		case dsh_opcode_movc:
+		{
+			if (source1 >= cur_frame_size || destination >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[destination].u = source1;
+
+			break;
+		}
 
 		case dsh_opcode_jmp:
 		{
 			cur_pc += *(int8_t *)&destination;
 
-			if (cur_pc >= cur_func->bytecode_end ||
-				cur_pc < cur_func->bytecode_start)
+			if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 			{
 				fprintf(stderr, "jmp to outside of the current function.\n");
 				goto execution_error;
@@ -374,9 +391,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			continue;
 		}
 
-		case dsh_opcode_jmpi_e:
+		case dsh_opcode_jmp_ie:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -386,8 +403,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -398,9 +414,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpi_l:
+		case dsh_opcode_jmp_il:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -410,8 +426,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -422,9 +437,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpi_le:
+		case dsh_opcode_jmp_ile:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -434,8 +449,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -446,9 +460,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpi_g:
+		case dsh_opcode_jmp_ig:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -458,8 +472,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -470,9 +483,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpi_ge:
+		case dsh_opcode_jmp_ige:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -482,8 +495,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -495,9 +507,125 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			break;
 		}
 
-		case dsh_opcode_jmpf_e:
+		case dsh_opcode_jmp_ice:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			if (stack.reg_current[source1].i == *((int8_t *)&source2))
+			{
+				cur_pc += *(int8_t *)&destination;
+
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
+				{
+					fprintf(stderr, "jmp to outside of the current function.\n");
+					goto execution_error;
+				}
+
+				continue;
+			}
+
+			break;
+		}
+		case dsh_opcode_jmp_icl:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			if (stack.reg_current[source1].i < *((int8_t *)&source2))
+			{
+				cur_pc += *(int8_t *)&destination;
+
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
+				{
+					fprintf(stderr, "jmp to outside of the current function.\n");
+					goto execution_error;
+				}
+
+				continue;
+			}
+
+			break;
+		}
+		case dsh_opcode_jmp_icle:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			if (stack.reg_current[source1].i <= *((int8_t *)&source2))
+			{
+				cur_pc += *(int8_t *)&destination;
+
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
+				{
+					fprintf(stderr, "jmp to outside of the current function.\n");
+					goto execution_error;
+				}
+
+				continue;
+			}
+
+			break;
+		}
+		case dsh_opcode_jmp_icg:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			if (stack.reg_current[source1].i > *((int8_t *)&source2))
+			{
+				cur_pc += *(int8_t *)&destination;
+
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
+				{
+					fprintf(stderr, "jmp to outside of the current function.\n");
+					goto execution_error;
+				}
+
+				continue;
+			}
+
+			break;
+		}
+		case dsh_opcode_jmp_icge:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			if (stack.reg_current[source1].i >= *((int8_t *)&source2))
+			{
+				cur_pc += *(int8_t *)&destination;
+
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
+				{
+					fprintf(stderr, "jmp to outside of the current function.\n");
+					goto execution_error;
+				}
+
+				continue;
+			}
+
+			break;
+		}
+		
+		case dsh_opcode_jmp_fe:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -507,8 +635,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -519,9 +646,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpf_l:
+		case dsh_opcode_jmp_fl:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -531,8 +658,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -543,9 +669,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpf_le:
+		case dsh_opcode_jmp_fle:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -555,8 +681,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -567,9 +692,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpf_g:
+		case dsh_opcode_jmp_fg:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -579,8 +704,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -591,9 +715,9 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
-		case dsh_opcode_jmpf_ge:
+		case dsh_opcode_jmp_fge:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -603,8 +727,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 			{
 				cur_pc += *(int8_t *)&destination;
 
-				if (cur_pc >= cur_func->bytecode_end ||
-					cur_pc < cur_func->bytecode_start)
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
 					fprintf(stderr, "jmp to outside of the current function.\n");
 					goto execution_error;
@@ -618,7 +741,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 		case dsh_opcode_addi:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -630,9 +753,23 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
+		case dsh_opcode_addic:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[destination].i =
+				stack.reg_current[source1].i +
+				*((int8_t *)&source2);
+
+			break;
+		}
 		case dsh_opcode_addf:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -647,7 +784,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 		case dsh_opcode_subi:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -659,9 +796,23 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
+		case dsh_opcode_subic:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[destination].i =
+				stack.reg_current[source1].i -
+				*((int8_t *)&source2);
+
+			break;
+		}
 		case dsh_opcode_subf:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -676,7 +827,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 		case dsh_opcode_muli:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -688,9 +839,23 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
+		case dsh_opcode_mulic:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[destination].i =
+				stack.reg_current[source1].i *
+				*((int8_t *)&source2);
+
+			break;
+		}
 		case dsh_opcode_mulf:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -705,7 +870,7 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 		case dsh_opcode_divi:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;
@@ -717,9 +882,23 @@ int dsh_exec_func(struct dsh_lib *lib, uint32_t func_index, const uint32_t *in_r
 
 			break;
 		}
+		case dsh_opcode_divic:
+		{
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[destination].i =
+				stack.reg_current[source1].i /
+				*((int8_t *)&source2);
+
+			break;
+		}
 		case dsh_opcode_divf:
 		{
-			if (source1 >= cur_stack_size || source2 >= cur_stack_size || destination >= cur_stack_size)
+			if (source1 >= cur_frame_size || source2 >= cur_frame_size || destination >= cur_frame_size)
 			{
 				fprintf(stderr, "register out of bounds error.\n");
 				goto execution_error;

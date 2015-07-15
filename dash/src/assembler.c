@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
-#include "opcode.h"
+#include "bytecode.h"
 #include "string.h"
 
 long file_len(FILE *file)
@@ -97,10 +98,11 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 	{
 		return dsh_emit_nop();
 	}
-	else if (str_starts_with(line, "call"))
+	
+	if (str_starts_with(line, "call"))
 	{
 		char function_name[64];
-		if (sscanf(line, "call %63s i%u o%u", &function_name, &source2, &destination) != 1)
+		if (sscanf(line, "call %63s r%u -> r%u", &function_name, &source2, &destination) != 3)
 			return ~0;
 
 		source1 = find_function_index(function_name, function_list);
@@ -109,21 +111,117 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 			return ~0;
 
 		return dsh_emit_instruction(dsh_opcode_call, source1, source2, destination);
-	}
-	else if (str_starts_with(line, "ret"))
+	}	
+	if (str_starts_with(line, "ret"))
 	{
-		if (sscanf(line, "ret o%u", &source1) != 1)
+		if (sscanf(line, "ret r%u", &source1) != 1)
 			return ~0;
 
 		return dsh_emit_instruction(dsh_opcode_ret, source1, 0, 0);
-	}
-	else if (str_starts_with(line, "mov"))
+	}	
+	if (str_starts_with(line, "mov"))
 	{
-		if (sscanf(line, "mov r%u r%u", &source1, &destination) != 2)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_mov, source1, 0, destination);
+		if (sscanf(line, "mov r%u -> r%u", &source1, &destination) == 2)
+		{
+			return dsh_emit_instruction(dsh_opcode_mov, source1, 0, destination);
+		}
+		int immediate;
+		if (sscanf(line, "mov %i -> r%u", &immediate, &destination) == 2)
+		{
+			int8_t shortend = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_movc, *((uint8_t *)&shortend), 0, destination);
+		}
+
+		return ~0;
 	}
-	else if (str_starts_with(line, "jmp"))
+	
+	if (str_starts_with(line, "jmpi"))
+	{
+		int offset;
+
+		if (sscanf(line, "jmpi r%u = r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_ie, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u < r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_il, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u <= r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_ile, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u > r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_ig, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u >= r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_ige, source1, source2, *(uint8_t *)&offset);
+		}
+
+		int immediate;
+
+		if (sscanf(line, "jmpi r%u = %i %d", &source1, &immediate, &offset) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_jmp_ice, source1, *((uint8_t *)&shortened), *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u < %i %d", &source1, &immediate, &offset) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_jmp_icl, source1, *((uint8_t *)&shortened), *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u <= %i %d", &source1, &immediate, &offset) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_jmp_icle, source1, *((uint8_t *)&shortened), *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u > %i %d", &source1, &immediate, &offset) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_jmp_icg, source1, *((uint8_t *)&shortened), *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpi r%u >= %i %d", &source1, &immediate, &offset) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_jmp_icge, source1, *((uint8_t *)&shortened), *(uint8_t *)&offset);
+		}
+
+		return ~0;
+	}
+
+	if (str_starts_with(line, "jmpf"))
+	{
+		int offset;
+
+		if (sscanf(line, "jmpf r%u = r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_fe, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpf r%u < r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_fl, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpf r%u <= r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_fle, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpf r%u > r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_fg, source1, source2, *(uint8_t *)&offset);
+		}
+		if (sscanf(line, "jmpf r%u >= r%u %d", &source1, &source2, &offset) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_jmp_fge, source1, source2, *(uint8_t *)&offset);
+		}
+
+		return ~0;
+	}
+
+	// Needs to be behind jmpi, jmpf
+
+	if (str_starts_with(line, "jmp"))
 	{
 		int offset;
 
@@ -132,49 +230,89 @@ uint32_t parse_instruction(const char *line, struct function_def *function_list)
 
 		return dsh_emit_instruction(dsh_opcode_jmp, 0, 0, *(uint8_t *)&offset);
 	}
-	else if (str_starts_with(line, "addi"))
+
+	if (str_starts_with(line, "addi"))
 	{
-		if (sscanf(line, "addi r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_addi, source1, source2, destination);
+		if (sscanf(line, "addi r%u r%u -> r%u", &source1, &source2, &destination) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_addi, source1, source2, destination);
+		}
+		int immediate;
+		if (sscanf(line, "addi r%u %i -> r%u", &source1, &immediate, &destination) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_addic, source1, *((uint8_t *)&shortened), destination);
+		}
+
+		return ~0;
 	}
-	else if (str_starts_with(line, "addf"))
+	if (str_starts_with(line, "addf"))
 	{
 		if (sscanf(line, "addf r%u r%u -> r%u", &source1, &source2, &destination) != 3)
 			return ~0;
 		return dsh_emit_instruction(dsh_opcode_addf, source1, source2, destination);
 	}
-	else if (str_starts_with(line, "subi"))
+	
+	if (str_starts_with(line, "subi"))
 	{
-		if (sscanf(line, "subi r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_subi, source1, source2, destination);
+		if (sscanf(line, "subi r%u r%u -> r%u", &source1, &source2, &destination) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_subi, source1, source2, destination);
+		}
+		int immediate;
+		if (sscanf(line, "subi r%u %i -> r%u", &source1, &immediate, &destination) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_subic, source1, *((uint8_t *)&shortened), destination);
+		}
+
+		return ~0;
 	}
-	else if (str_starts_with(line, "subf"))
+	if (str_starts_with(line, "subf"))
 	{
 		if (sscanf(line, "subf r%u r%u -> r%u", &source1, &source2, &destination) != 3)
 			return ~0;
 		return dsh_emit_instruction(dsh_opcode_subf, source1, source2, destination);
 	}
-	else if (str_starts_with(line, "muli"))
+	
+	if (str_starts_with(line, "muli"))
 	{
-		if (sscanf(line, "muli r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_muli, source1, source2, destination);
+		if (sscanf(line, "muli r%u r%u -> r%u", &source1, &source2, &destination) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_muli, source1, source2, destination);
+		}
+		int immediate;
+		if (sscanf(line, "muli r%u %i -> r%u", &source1, &immediate, &destination) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_mulic, source1, *((uint8_t *)&shortened), destination);
+		}
+
+		return ~0;
 	}
-	else if (str_starts_with(line, "mulf"))
+	if (str_starts_with(line, "mulf"))
 	{
 		if (sscanf(line, "mulf r%u r%u -> r%u", &source1, &source2, &destination) != 3)
 			return ~0;
 		return dsh_emit_instruction(dsh_opcode_mulf, source1, source2, destination);
 	}
-	else if (str_starts_with(line, "divi"))
+	
+	if (str_starts_with(line, "divi"))
 	{
-		if (sscanf(line, "divi r%u r%u -> r%u", &source1, &source2, &destination) != 3)
-			return ~0;
-		return dsh_emit_instruction(dsh_opcode_divi, source1, source2, destination);
+		if (sscanf(line, "divi r%u r%u -> r%u", &source1, &source2, &destination) == 3)
+		{
+			return dsh_emit_instruction(dsh_opcode_divi, source1, source2, destination);
+		}
+		int immediate;
+		if (sscanf(line, "divi r%u %i -> r%u", &source1, &immediate, &destination) == 3)
+		{
+			int8_t shortened = (int8_t)immediate;
+			return dsh_emit_instruction(dsh_opcode_divic, source1, *((uint8_t *)&shortened), destination);
+		}
+
+		return ~0;
 	}
-	else if (str_starts_with(line, "divf"))
+	if (str_starts_with(line, "divf"))
 	{
 		if (sscanf(line, "divf r%u r%u -> r%u", &source1, &source2, &destination) != 3)
 			return ~0;
@@ -244,7 +382,7 @@ int dsh_assemble(const char *assembly_filename, const char *obj_filename)
 	char *line = strtok(asm_buffer, "\n");
 	while (line)
 	{
-		if (str_is_whitespace(line))
+		if (str_is_whitespace(line) || str_starts_with(line, "#"))
 		{
 			line = strtok(NULL, "\n");
 			++line_no;

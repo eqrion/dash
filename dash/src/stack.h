@@ -4,15 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef struct
-{
-	union
-	{
-		int32_t i;
-		float f;
-		uint32_t u;
-	};
-} dsh_var;
+#include "dash/var.h"
 
 /*
  * A register stack for use in dash execution.
