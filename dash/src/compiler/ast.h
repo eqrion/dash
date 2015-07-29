@@ -1,88 +1,101 @@
 #ifndef dash_ast_h
 #define dash_ast_h
 
-/* Dash Type */
+#include <stdint.h>
 
-enum dsh_type
+enum ast_type
 {
-	dsh_type_real = 0,
-	dsh_type_integer = 1,
+	ast_type_real = 0,
+	ast_type_integer = 1,
 };
-typedef enum dsh_type dsh_type;
 
-struct dsh_type_list
+enum ast_statement_type
 {
-	dsh_type		 value;
+	ast_statement_type_definition,
+	ast_statement_type_assignment,
 
-	struct dsh_type_list	*prev;
-	struct dsh_type_list	*next;
+	ast_statement_type_call,
+
+	ast_statement_type_block,
+	ast_statement_type_if,
+	ast_statement_type_while,
+
+	ast_statement_type_return,
 };
-typedef struct dsh_type_list dsh_type_list;
-
-dsh_type_list	*dsh_alloc_type_list(dsh_type_list *list, dsh_type value);
-void			 dsh_dealloc_type_list(dsh_type_list *list);
-
-void dsh_print_type(dsh_type type, int tab_level);
-void dsh_print_type_list(dsh_type_list *list, int tab_level);
-
-/* Dash Identifier */
-
-typedef char dsh_id;
-
-struct dsh_id_list
+struct ast_statement
 {
-	dsh_id		*value;
+	enum ast_statement_type type;
 
-	struct dsh_id_list *prev;
-	struct dsh_id_list *next;
+	struct
+	{
+		struct ast_id_list	*variables;
+		struct ast_exp_list *values;
+	} definition;
+
+	struct
+	{
+		struct ast_id_list	*variables;
+		struct ast_exp_list *values;
+	} assignment;
+
+	struct
+	{
+		char				*function;
+		struct ast_exp_list *parameters;
+	} call;
+
+	struct
+	{
+		struct ast_statement_list *statements;
+	} block;
+
+	struct
+	{
+		struct ast_exp		*condition;
+		struct ast_statement *true_statement;
+		struct ast_statement *false_statement;
+	} if_else;
+
+	struct
+	{
+		struct ast_exp		*condition;
+		struct ast_statement *loop_statement;
+	} while_loop;
+
+	struct
+	{
+		struct ast_exp_list		*values;
+	} ret;
 };
-typedef struct dsh_id_list dsh_id_list;
-
-dsh_id	*dsh_grab_id(char *name);
-void	 dsh_dealloc_id(dsh_id *id);
-
-dsh_id_list *dsh_alloc_id_list(dsh_id_list *list, dsh_id *value);
-void		 dsh_dealloc_id_list(dsh_id_list *list);
-
-void dsh_print_id(dsh_id *id, int tab_level);
-void dsh_print_id_list(dsh_id_list *list, int tab_level);
-
-/* Dash Expression */
-
-enum dsh_exp_type
+enum ast_exp_type
 {
-	dsh_exp_type_variable,
-	dsh_exp_type_integer,
-	dsh_exp_type_real,
-	dsh_exp_type_cast,
-	
-	dsh_exp_type_addition,
-	dsh_exp_type_subtraction,
-	dsh_exp_type_multiplication,
-	dsh_exp_type_division,
-	
-	dsh_exp_type_definition,
-	dsh_exp_type_assignment,
+	ast_exp_type_variable,
+	ast_exp_type_integer,
+	ast_exp_type_real,
 
-	dsh_exp_type_call,
+	ast_exp_type_cast,
 
-	dsh_exp_type_block,
-	dsh_exp_type_if,
-	dsh_exp_type_while,
+	ast_exp_type_addition,
+	ast_exp_type_subtraction,
+	ast_exp_type_multiplication,
+	ast_exp_type_division,
+
+	ast_exp_type_less,
+	ast_exp_type_less_eq,
+	ast_exp_type_greater,
+	ast_exp_type_greater_eq,
+
+	ast_exp_type_call,
 };
-typedef enum dsh_exp_type dsh_exp_type;
-
-struct dsh_exp_list;
-
-struct dsh_exp
+struct ast_exp
 {
-	dsh_exp_type type;
+	enum ast_exp_type	type;
 
 	union
 	{
 		struct
 		{
-			dsh_id *identifier;
+			char *id;
 		} variable;
 
 		struct
@@ -97,136 +110,164 @@ struct dsh_exp
 
 		struct
 		{
-			dsh_type		dest_type;
-			struct dsh_exp *value;
+			enum ast_type	dest_type;
+			struct ast_exp *value;
 		} cast;
 
 		struct
 		{
-			struct dsh_exp *left;
-			struct dsh_exp *right;
-		} addition;
+			struct ast_exp *left;
+			struct ast_exp *right;
+		} operator;
 
 		struct
 		{
-			struct dsh_exp *left;
-			struct dsh_exp *right;
-		} subtraction;
-
-		struct
-		{
-			struct dsh_exp *left;
-			struct dsh_exp *right;
-		} multiplication;
-
-		struct
-		{
-			struct dsh_exp *left;
-			struct dsh_exp *right;
-		} division;
-
-		struct
-		{
-			dsh_id_list *variables;
-			struct dsh_exp_list *values;
-		} definition;
-
-		struct
-		{
-			dsh_id_list *variables;
-			struct dsh_exp_list *values;
-		} assignment;
-
-		struct
-		{
-			dsh_id *function;
-			struct dsh_exp_list *parameters;
+			char				*function;
+			struct ast_exp_list *parameters;
 		} call;
-
-		struct
-		{
-			struct dsh_exp_list *statements;
-		} block;
-
-		struct
-		{
-			struct dsh_exp *condition;
-			struct dsh_exp_list *true_exp;
-			struct dsh_exp_list *false_exp;
-		} if_else;
-
-		struct
-		{
-			struct dsh_exp *condition;
-			struct dsh_exp_list *exp;
-		} while_loop;
 	};
-};
-typedef struct dsh_exp dsh_exp;
 
-struct dsh_exp_list
+	size_t temp_count_est;
+};
+struct ast_func_param
 {
-	dsh_exp		*value;
-
-	struct dsh_exp_list *prev;
-	struct dsh_exp_list *next;
+	char			*id;
+	enum ast_type	 type;
 };
-typedef struct dsh_exp_list dsh_exp_list;
-
-dsh_exp *dsh_alloc_exp_var(dsh_id *value);
-dsh_exp *dsh_alloc_exp_int(int value);
-dsh_exp *dsh_alloc_exp_real(float value);
-dsh_exp *dsh_alloc_exp_cast(dsh_type dest_type, dsh_exp *value);
-
-dsh_exp *dsh_alloc_exp_add(dsh_exp *left, dsh_exp *right);
-dsh_exp *dsh_alloc_exp_sub(dsh_exp *left, dsh_exp *right);
-dsh_exp *dsh_alloc_exp_mul(dsh_exp *left, dsh_exp *right);
-dsh_exp *dsh_alloc_exp_div(dsh_exp *left, dsh_exp *right);
-
-dsh_exp *dsh_alloc_exp_definition(dsh_id_list *variables, dsh_exp_list *assignments);
-dsh_exp *dsh_alloc_exp_assignment(dsh_id_list *variables, dsh_exp_list *assignments);
-
-dsh_exp *dsh_alloc_exp_call(dsh_id *function, dsh_exp_list *parameters);
-
-dsh_exp *dsh_alloc_exp_block(dsh_exp_list *statements);
-dsh_exp *dsh_alloc_exp_if(dsh_exp *condition, dsh_exp_list *true_exp, dsh_exp_list *false_exp);
-dsh_exp *dsh_alloc_exp_while(dsh_exp *condition, dsh_exp_list *statement);
-
-void dsh_dealloc_exp(dsh_exp *exp);
-
-dsh_exp_list	*dsh_alloc_exp_list(dsh_exp_list *list, dsh_exp *value);
-void			 dsh_dealloc_exp_list(dsh_exp_list *list);
-
-void dsh_print_exp(dsh_exp *exp, int tab_level);
-void dsh_print_exp_list(dsh_exp_list *list, int tab_level);
-
-/* Dash Function */
-
-struct dsh_func
+struct ast_func
 {
-	dsh_id		*name;
-	dsh_exp_list *parameters;
-	dsh_type_list		*out_types;
-	dsh_exp_list	*code;
+	char							*id;
+	struct ast_func_param_list		*in_params;
+	struct ast_type_list			*out_types;
+	struct ast_statement			*statement;
 };
-typedef struct dsh_func dsh_func;
+typedef enum ast_type				ast_type;
+typedef enum ast_statement_type		ast_statement_type;
+typedef enum ast_exp_type			ast_exp_type;
+typedef struct ast_statement		ast_statement;
+typedef struct ast_exp				ast_exp;
+typedef struct ast_func_param		ast_func_param;
+typedef struct ast_func				ast_func;
 
-struct dsh_func_list
+/* Lists */
+
+struct ast_type_list
 {
-	dsh_func *value;
+	ast_type		 value;
 
-	struct dsh_func_list *prev;
-	struct dsh_func_list *next;
+	struct ast_type_list	*prev;
+	struct ast_type_list	*next;
 };
-typedef struct dsh_func_list dsh_func_list;
+struct ast_id_list
+{
+	char		*value;
 
-dsh_func	*dsh_alloc_func(dsh_id *name, dsh_exp_list *parameters, dsh_type_list *out_types, dsh_exp_list *code);
-void		 dsh_dealloc_func(dsh_func *func);
+	struct ast_id_list *prev;
+	struct ast_id_list *next;
+};
+struct ast_statement_list
+{
+	ast_statement		*value;
 
-dsh_func_list	*dsh_alloc_func_list(dsh_func_list *list, dsh_func *value);
-void			 dsh_dealloc_func_list(dsh_func_list *list);
+	struct ast_statement_list *prev;
+	struct ast_statement_list *next;
+};
+struct ast_exp_list
+{
+	ast_exp		*value;
 
-void dsh_print_func(dsh_func *function);
-void dsh_print_func_list(dsh_func_list *list);
+	struct ast_exp_list *prev;
+	struct ast_exp_list *next;
+};
+struct ast_func_param_list
+{
+	ast_func_param *value;
+
+	struct ast_func_param_list *prev;
+	struct ast_func_param_list *next;
+};
+struct ast_func_list
+{
+	ast_func *value;
+
+	struct ast_func_list *prev;
+	struct ast_func_list *next;
+};
+
+typedef struct ast_type_list		ast_type_list;
+typedef struct ast_id_list			ast_id_list;
+typedef struct ast_statement_list	ast_statement_list;
+typedef struct ast_exp_list			ast_exp_list;
+typedef struct ast_func_list		ast_func_list;
+typedef struct ast_func_param_list	ast_func_param_list;
+
+static ast_type_list ast_sentinel_type_real = { ast_type_real, &ast_sentinel_type_real, &ast_sentinel_type_real };
+static ast_type_list ast_sentinel_type_integer = { ast_type_integer, &ast_sentinel_type_integer, &ast_sentinel_type_integer };
+
+/* Constructors, Destructors, Accessors */
+
+ast_statement *ast_create_statement_definition(ast_id_list *variables, ast_exp_list *assignments);
+ast_statement *ast_create_statement_assignment(ast_id_list *variables, ast_exp_list *assignments);
+ast_statement *ast_create_statement_call(char *function, ast_exp_list *parameters);
+ast_statement *ast_create_statement_block(ast_statement_list *statements);
+ast_statement *ast_create_statement_if(ast_exp *condition, ast_statement *true_statement, ast_statement *false_statement);
+ast_statement *ast_create_statement_while(ast_exp *condition, ast_statement *loop_statement);
+ast_statement *ast_create_statement_return(ast_exp_list *value);
+
+ast_exp *ast_create_exp_var(char *value);
+ast_exp *ast_create_exp_int(int value);
+ast_exp *ast_create_exp_real(float value);
+ast_exp *ast_create_exp_cast(ast_type dest_type, ast_exp *value);
+ast_exp *ast_create_exp_add(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_sub(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_mul(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_div(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_cmp_l(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_cmp_le(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_cmp_g(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_cmp_ge(ast_exp *left, ast_exp *right);
+ast_exp *ast_create_exp_call(char *function, ast_exp_list *parameters);
+
+ast_func_param	*ast_create_func_param(char *id, ast_type type);
+ast_func		*ast_create_func(char *id, ast_func_param_list *in_params, ast_type_list *out_types, ast_statement *statement);
+
+void	ast_destroy_statement(ast_statement *statement);
+void	ast_destroy_exp(ast_exp *exp);
+void	ast_destroy_func_param(ast_func_param *func_param);
+void	ast_destroy_func(ast_func *func);
+
+ast_type_list		*ast_append_type_list(ast_type_list *list, ast_type value);
+ast_id_list			*ast_append_id_list(ast_id_list *list, char *value);
+ast_statement_list	*ast_append_statement_list(ast_statement_list *list, ast_statement *value);
+ast_exp_list		*ast_append_exp_list(ast_exp_list *list, ast_exp *value);
+ast_func_param_list	*ast_append_func_param_list(ast_func_param_list *list, ast_func_param *value);
+ast_func_list		*ast_append_func_list(ast_func_list *list, ast_func *value);
+
+void			 ast_destroy_type_list(ast_type_list *list);
+void			 ast_destroy_id_list(ast_id_list *list);
+void			 ast_destroy_statement_list(ast_statement_list *list);
+void			 ast_destroy_exp_list(ast_exp_list *list);
+void			 ast_destroy_func_param_list(ast_func_param_list *list);
+void			 ast_destroy_func_list(ast_func_list *list);
+
+size_t ast_exp_list_count(ast_exp_list *list);
+size_t ast_type_list_count(ast_type_list *list);
+size_t ast_func_param_list_count(ast_func_param_list *list);
+
+/* Printing */
+
+void ast_print_type(ast_type type, int tab_level);
+void ast_print_id(char *id, int tab_level);
+void ast_print_statement(ast_statement *statement, int tab_level);
+void ast_print_exp(ast_exp *exp, int tab_level);
+void ast_print_func_param(ast_func_param *function_param, int tab_level);
+void ast_print_func(ast_func *function);
+
+void ast_print_type_list(ast_type_list *list, int tab_level);
+void ast_print_id_list(ast_id_list *list, int tab_level);
+void ast_print_statement_list(ast_statement_list *list, int tab_level);
+void ast_print_exp_list(ast_exp_list *list, int tab_level);
+void ast_print_func_param_list(ast_func_param_list *list, int tab_level);
+void ast_print_func_list(ast_func_list *list);
 
 #endif

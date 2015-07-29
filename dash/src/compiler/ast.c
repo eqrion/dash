@@ -3,13 +3,450 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* Types */
+/* Constructors, Destructors, Accessors */
 
-dsh_type_list *dsh_alloc_type_list(dsh_type_list *list, dsh_type value)
+ast_statement *ast_create_statement_definition(ast_id_list *variables, ast_exp_list *assignments)
+{
+	ast_statement *statement = (ast_statement *)malloc(sizeof(ast_statement));
+
+	if (statement == NULL)
+		return NULL;
+
+	statement->type = ast_statement_type_definition;
+	statement->definition.variables = variables;
+	statement->definition.values = assignments;
+
+	return statement;
+}
+ast_statement *ast_create_statement_assignment(ast_id_list *variables, ast_exp_list *assignments)
+{
+	ast_statement *statement = (ast_statement *)malloc(sizeof(ast_statement));
+
+	if (statement == NULL)
+		return NULL;
+
+	statement->type = ast_statement_type_assignment;
+	statement->assignment.variables = variables;
+	statement->assignment.values = assignments;
+
+	return statement;
+}
+ast_statement *ast_create_statement_call(char *function, ast_exp_list *parameters)
+{
+	ast_statement *statement = (ast_statement *)malloc(sizeof(ast_statement));
+
+	if (statement == NULL)
+		return NULL;
+
+	statement->type = ast_statement_type_call;
+	statement->call.function = function;
+	statement->call.parameters = parameters;
+
+	return statement;
+}
+ast_statement *ast_create_statement_block(ast_statement_list *statements)
+{
+	ast_statement *statement = (ast_statement *)malloc(sizeof(ast_statement));
+
+	if (statement == NULL)
+		return NULL;
+
+	statement->type = ast_statement_type_block;
+	statement->block.statements = statements;
+
+	return statement;
+}
+ast_statement *ast_create_statement_if(ast_exp *condition, ast_statement *true_statement, ast_statement *false_statement)
+{
+	if (condition == NULL || true_statement == NULL || false_statement == NULL)
+		return NULL;
+
+	ast_statement *statement = (ast_statement *)malloc(sizeof(ast_statement));
+
+	if (statement == NULL)
+		return NULL;
+
+	statement->type = ast_statement_type_if;
+	statement->if_else.condition = condition;
+	statement->if_else.true_statement = true_statement;
+	statement->if_else.false_statement = false_statement;
+
+	return statement;
+}
+ast_statement *ast_create_statement_while(ast_exp *condition, ast_statement *loop_statement)
+{
+	if (condition == NULL || loop_statement == NULL)
+		return NULL;
+
+	ast_statement *statement = (ast_statement *)malloc(sizeof(ast_statement));
+
+	if (statement == NULL)
+		return NULL;
+
+	statement->type = ast_statement_type_while;
+	statement->while_loop.condition = condition;
+	statement->while_loop.loop_statement = loop_statement;
+
+	return statement;
+}
+ast_statement *ast_create_statement_return(ast_exp_list *values)
+{
+	if (values == NULL)
+		return NULL;
+
+	ast_statement *statement = (ast_statement *)malloc(sizeof(ast_statement));
+
+	if (statement == NULL)
+		return NULL;
+
+	statement->type = ast_statement_type_return;
+	statement->ret.values = values;
+
+	return statement;
+}
+
+ast_exp *ast_create_exp_var(char *value)
+{
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_variable;
+	exp->variable.id = value;
+	exp->temp_count_est = 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_int(int value)
+{
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_integer;
+	exp->integer.value = value;
+	exp->temp_count_est = 1;
+
+	return exp;
+}
+ast_exp *ast_create_exp_real(float value)
+{
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_real;
+	exp->real.value = value;
+	exp->temp_count_est = 1;
+
+	return exp;
+}
+ast_exp *ast_create_exp_cast(ast_type dest_type, ast_exp *value)
+{
+	if (value == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_cast;
+	exp->cast.dest_type = dest_type;
+	exp->cast.value = value;
+	exp->temp_count_est = max(value->temp_count_est, 1);
+
+	return exp;
+}
+ast_exp *ast_create_exp_add(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_addition;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_sub(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_subtraction;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_mul(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_multiplication;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_div(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_division;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_cmp_l(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_less;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_cmp_le(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_less_eq;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_cmp_g(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_greater;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_cmp_ge(ast_exp *left, ast_exp *right)
+{
+	if (left == NULL || right == NULL)
+		return NULL;
+
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_greater_eq;
+	exp->operator.left = left;
+	exp->operator.right = right;
+	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
+		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+
+	return exp;
+}
+ast_exp *ast_create_exp_call(char *function, ast_exp_list *parameters)
+{
+	ast_exp *exp = (ast_exp *)malloc(sizeof(ast_exp));
+
+	if (exp == NULL)
+		return NULL;
+
+	exp->type = ast_exp_type_call;
+	exp->call.function = function;
+	exp->call.parameters = parameters;
+	exp->temp_count_est = max(ast_exp_list_count(parameters), 1);
+
+	return exp;
+}
+
+ast_func_param	*ast_create_func_param(char *id, ast_type type)
+{
+	ast_func_param *func_param = (ast_func_param *)malloc(sizeof(ast_func_param));
+
+	if (func_param == NULL)
+		return NULL;
+	
+	func_param->id = id;
+	func_param->type = type;
+
+	return func_param;
+}
+ast_func *ast_create_func(char *id, ast_func_param_list *in_params, ast_type_list *out_types, ast_statement *code)
+{
+	ast_func *func = (ast_func *)malloc(sizeof(ast_func));
+
+	if (func == NULL)
+		return NULL;
+
+	func->id = id;
+	func->in_params = in_params;
+	func->out_types = out_types;
+	func->statement = code;
+
+	return func;
+}
+
+void ast_destroy_statement(ast_statement *statement)
+{
+	if (statement == NULL)
+		return;
+
+	switch (statement->type)
+	{
+	case ast_statement_type_definition:
+		ast_destroy_exp_list(statement->definition.values);
+		ast_destroy_id_list(statement->definition.variables);
+		break;
+
+	case ast_statement_type_assignment:
+		ast_destroy_exp_list(statement->assignment.values);
+		ast_destroy_id_list(statement->assignment.variables);
+		break;
+
+	case ast_statement_type_call:
+		ast_destroy_exp_list(statement->call.parameters);
+		free(statement->call.function);
+		break;
+
+	case ast_statement_type_block:
+		ast_destroy_statement_list(statement->block.statements);
+		break;
+	case ast_statement_type_if:
+		ast_destroy_exp(statement->if_else.condition);
+		ast_destroy_statement(statement->if_else.true_statement);
+		ast_destroy_statement(statement->if_else.false_statement);
+		break;
+	case ast_statement_type_while:
+		ast_destroy_exp(statement->while_loop.condition);
+		ast_destroy_statement(statement->while_loop.loop_statement);
+		break;
+	}
+
+	free(statement);
+}
+void ast_destroy_exp(ast_exp *exp)
+{
+	if (exp == NULL)
+		return;
+
+	switch (exp->type)
+	{
+	case ast_exp_type_variable:
+		free(exp->variable.id);
+		break;
+	case ast_exp_type_integer:
+	case ast_exp_type_real:
+		break;
+	case ast_exp_type_cast:
+		ast_destroy_exp(exp->cast.value);
+		break;
+	case ast_exp_type_addition:
+	case ast_exp_type_subtraction:
+	case ast_exp_type_multiplication:
+	case ast_exp_type_division:
+	case ast_exp_type_less:
+	case ast_exp_type_less_eq:
+	case ast_exp_type_greater:
+	case ast_exp_type_greater_eq:
+		ast_destroy_exp(exp->operator.left);
+		ast_destroy_exp(exp->operator.right);
+		break;
+
+	case ast_exp_type_call:
+		ast_destroy_exp_list(exp->call.parameters);
+		free(exp->call.function);
+		break;
+	}
+
+	free(exp);
+}
+void ast_destroy_func_param(ast_func_param *func_param)
+{
+	if (func_param == NULL)
+		return;
+
+	free(func_param->id);
+	free(func_param);
+}
+void ast_destroy_func(ast_func *func)
+{
+	if (func == NULL)
+		return;
+
+	free(func->id);
+	ast_destroy_func_param_list(func->in_params);
+	ast_destroy_type_list(func->out_types);
+	ast_destroy_statement(func->statement);
+
+	free(func);
+}
+
+ast_type_list		*ast_append_type_list(ast_type_list *list, ast_type value)
 {
 	if (list == NULL)
 	{
-		list = (dsh_type_list *)malloc(sizeof(dsh_type_list));
+		list = (ast_type_list *)malloc(sizeof(ast_type_list));
 
 		if (list == NULL)
 			return NULL;
@@ -20,7 +457,7 @@ dsh_type_list *dsh_alloc_type_list(dsh_type_list *list, dsh_type value)
 	}
 	else
 	{
-		dsh_type_list *next = (dsh_type_list *)malloc(sizeof(dsh_type_list));
+		ast_type_list *next = (ast_type_list *)malloc(sizeof(ast_type_list));
 
 		if (next == NULL)
 			return NULL;
@@ -35,10 +472,161 @@ dsh_type_list *dsh_alloc_type_list(dsh_type_list *list, dsh_type value)
 
 	return list;
 }
-void dsh_dealloc_type_list(dsh_type_list *list)
+ast_id_list			*ast_append_id_list(ast_id_list *list, char *value)
 {
-	dsh_type_list *current = list;
-	dsh_type_list *next = NULL;
+	if (list == NULL)
+	{
+		list = (ast_id_list *)malloc(sizeof(ast_id_list));
+
+		if (list == NULL)
+			return NULL;
+
+		list->next = list;
+		list->prev = list;
+		list->value = value;
+	}
+	else
+	{
+		ast_id_list *next = (ast_id_list *)malloc(sizeof(ast_id_list));
+
+		if (next == NULL)
+			return NULL;
+
+		next->value = value;
+		next->next = list;
+		next->prev = list->prev;
+
+		list->prev->next = next;
+		list->prev = next;
+	}
+
+	return list;
+}
+ast_statement_list	*ast_append_statement_list(ast_statement_list *list, ast_statement *value)
+{
+	if (list == NULL)
+	{
+		list = (ast_statement_list *)malloc(sizeof(ast_statement_list));
+
+		if (list == NULL)
+			return NULL;
+
+		list->next = list;
+		list->prev = list;
+		list->value = value;
+	}
+	else
+	{
+		ast_statement_list *next = (ast_statement_list *)malloc(sizeof(ast_statement_list));
+
+		if (next == NULL)
+			return NULL;
+
+		next->value = value;
+		next->next = list;
+		next->prev = list->prev;
+
+		list->prev->next = next;
+		list->prev = next;
+	}
+
+	return list;
+}
+ast_exp_list		*ast_append_exp_list(ast_exp_list *list, ast_exp *value)
+{
+	if (list == NULL)
+	{
+		list = (ast_exp_list *)malloc(sizeof(ast_exp_list));
+
+		if (list == NULL)
+			return NULL;
+
+		list->next = list;
+		list->prev = list;
+		list->value = value;
+	}
+	else
+	{
+		ast_exp_list *next = (ast_exp_list *)malloc(sizeof(ast_exp_list));
+
+		if (next == NULL)
+			return NULL;
+
+		next->value = value;
+		next->next = list;
+		next->prev = list->prev;
+
+		list->prev->next = next;
+		list->prev = next;
+	}
+
+	return list;
+}
+ast_func_param_list	*ast_append_func_param_list(ast_func_param_list *list, ast_func_param *value)
+{
+	if (list == NULL)
+	{
+		list = (ast_func_param_list *)malloc(sizeof(ast_func_param_list));
+
+		if (list == NULL)
+			return NULL;
+
+		list->next = list;
+		list->prev = list;
+		list->value = value;
+	}
+	else
+	{
+		ast_func_param_list *next = (ast_func_param_list *)malloc(sizeof(ast_func_param_list));
+
+		if (next == NULL)
+			return NULL;
+
+		next->value = value;
+		next->next = list;
+		next->prev = list->prev;
+
+		list->prev->next = next;
+		list->prev = next;
+	}
+
+	return list;
+}
+ast_func_list		*ast_append_func_list(ast_func_list *list, ast_func *value)
+{
+	if (list == NULL)
+	{
+		list = (ast_func_list *)malloc(sizeof(ast_func_list));
+
+		if (list == NULL)
+			return NULL;
+
+		list->next = list;
+		list->prev = list;
+		list->value = value;
+	}
+	else
+	{
+		ast_func_list *next = (ast_func_list *)malloc(sizeof(ast_func_list));
+
+		if (next == NULL)
+			return NULL;
+
+		next->value = value;
+		next->next = list;
+		next->prev = list->prev;
+
+		list->prev->next = next;
+		list->prev = next;
+	}
+
+	return list;
+}
+
+void ast_destroy_type_list(ast_type_list *list)
+{
+	ast_type_list *current = list;
+	ast_type_list *next = NULL;
 
 	while (current != NULL)
 	{
@@ -52,8 +640,146 @@ void dsh_dealloc_type_list(dsh_type_list *list)
 			break;
 	}
 }
+void ast_destroy_id_list(ast_id_list *list)
+{
+	ast_id_list *current = list;
+	ast_id_list *next = NULL;
 
-void dsh_print_type(dsh_type type, int tab_level)
+	while (current != NULL)
+	{
+		next = current->next;
+
+		free(current->value);
+		free(current);
+
+		current = next;
+
+		if (current == list)
+			break;
+	}
+}
+void ast_destroy_statement_list(ast_statement_list *list)
+{
+	ast_statement_list *current = list;
+	ast_statement_list *next = NULL;
+
+	while (current != NULL)
+	{
+		next = current->next;
+
+		ast_destroy_statement(current->value);
+		free(current);
+
+		current = next;
+
+		if (current == list)
+			break;
+	}
+}
+void ast_destroy_exp_list(ast_exp_list *list)
+{
+	ast_exp_list *current = list;
+	ast_exp_list *next = NULL;
+
+	while (current != NULL)
+	{
+		next = current->next;
+
+		ast_destroy_exp(current->value);
+		free(current);
+
+		current = next;
+
+		if (current == list)
+			break;
+	}
+}
+void ast_destroy_func_param_list(ast_func_param_list *list)
+{
+	ast_func_param_list *current = list;
+	ast_func_param_list *next = NULL;
+
+	while (current != NULL)
+	{
+		next = current->next;
+
+		ast_destroy_func_param(current->value);
+		free(current);
+
+		current = next;
+
+		if (current == list)
+			break;
+	}
+}
+void ast_destroy_func_list(ast_func_list *list)
+{
+	ast_func_list *current = list;
+	ast_func_list *next = NULL;
+
+	while (current != NULL)
+	{
+		next = current->next;
+
+		ast_destroy_func(current->value);
+		free(current);
+
+		current = next;
+
+		if (current == list)
+			break;
+	}
+}
+
+size_t ast_exp_list_count(ast_exp_list *list)
+{
+	if (list == NULL)
+		return 0;
+
+	ast_exp_list *current = list->next;
+
+	size_t count = 1;
+	while (current != list)
+	{
+		++count;
+		current = current->next;
+	}
+	return count;
+}
+size_t ast_type_list_count(ast_type_list *list)
+{
+	if (list == NULL)
+		return 0;
+
+	ast_type_list *current = list->next;
+
+	size_t count = 1;
+	while (current != list)
+	{
+		++count;
+		current = current->next;
+	}
+	return count;
+}
+size_t ast_func_param_list_count(ast_func_param_list *list)
+{
+	if (list == NULL)
+		return 0;
+
+	ast_func_param_list *current = list->next;
+
+	size_t count = 1;
+	while (current != list)
+	{
+		++count;
+		current = current->next;
+	}
+	return count;
+}
+
+/* Printing */
+
+void ast_print_type(ast_type type, int tab_level)
 {
 	int tabs_left = tab_level;
 	while (tabs_left > 0)
@@ -64,10 +790,10 @@ void dsh_print_type(dsh_type type, int tab_level)
 
 	switch (type)
 	{
-	case dsh_type_real:
+	case ast_type_real:
 		printf("{real}");
 		break;
-	case dsh_type_integer:
+	case ast_type_integer:
 		printf("{integer}");
 		break;
 	default:
@@ -75,91 +801,7 @@ void dsh_print_type(dsh_type type, int tab_level)
 		break;
 	}
 }
-void dsh_print_type_list(dsh_type_list *list, int tab_level)
-{
-	dsh_type_list *current = list;
-
-	while (current != NULL)
-	{
-		dsh_print_type(current->value, tab_level);
-
-		current = current->next;
-
-		if (current == list)
-		{
-			break;
-		}
-		else
-		{
-			printf("\n");
-		}
-	}
-}
-
-/* Identifiers */
-
-dsh_id *dsh_grab_id(char *name)
-{
-	return name;
-}
-void dsh_dealloc_id(dsh_id *id)
-{
-	if (id != NULL)
-	{
-		free(id);
-	}
-}
-
-dsh_id_list *dsh_alloc_id_list(dsh_id_list *list, dsh_id *value)
-{
-	if (list == NULL)
-	{
-		list = (dsh_id_list *)malloc(sizeof(dsh_id_list));
-
-		if (list == NULL)
-			return NULL;
-
-		list->next = list;
-		list->prev = list;
-		list->value = value;
-	}
-	else
-	{
-		dsh_id_list *next = (dsh_id_list *)malloc(sizeof(dsh_id_list));
-
-		if (next == NULL)
-			return NULL;
-
-		next->value = value;
-		next->next = list;
-		next->prev = list->prev;
-
-		list->prev->next = next;
-		list->prev = next;
-	}
-
-	return list;
-}
-void dsh_dealloc_id_list(dsh_id_list *list)
-{
-	dsh_id_list *current = list;
-	dsh_id_list *next = NULL;
-
-	while (current != NULL)
-	{
-		next = current->next;
-
-		dsh_dealloc_id(current->value);
-		free(current);
-
-		current = next;
-
-		if (current == list)
-			break;
-	}
-}
-
-void dsh_print_id(dsh_id *id, int tab_level)
+void ast_print_id(char *id, int tab_level)
 {
 	int tabs_left = tab_level;
 	while (tabs_left > 0)
@@ -177,328 +819,65 @@ void dsh_print_id(dsh_id *id, int tab_level)
 		printf("%s", id);
 	}
 }
-void dsh_print_id_list(dsh_id_list *list, int tab_level)
+void ast_print_statement(ast_statement *statement, int tab_level)
 {
-	dsh_id_list *current = list;
-
-	while (current != NULL)
+	int tabs_left = tab_level;
+	while (tabs_left > 0)
 	{
-		dsh_print_id(current->value, tab_level);
-
-		current = current->next;
-
-		if (current == list)
-		{
-			break;
-		}
-		else
-		{
-			printf("\n");
-		}
-	}
-}
-
-/* Expressions */
-
-dsh_exp *dsh_alloc_exp_var(dsh_id *value)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_variable;
-	exp->variable.identifier = value;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_int(int value)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_integer;
-	exp->integer.value = value;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_real(float value)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_real;
-	exp->real.value = value;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_cast(dsh_type dest_type, dsh_exp *value)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_cast;
-	exp->cast.dest_type = dest_type;
-	exp->cast.value = value;
-
-	return exp;
-}
-
-dsh_exp *dsh_alloc_exp_add(dsh_exp *left, dsh_exp *right)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_addition;
-	exp->addition.left = left;
-	exp->addition.right = right;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_sub(dsh_exp *left, dsh_exp *right)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_subtraction;
-	exp->subtraction.left = left;
-	exp->subtraction.right = right;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_mul(dsh_exp *left, dsh_exp *right)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_multiplication;
-	exp->multiplication.left = left;
-	exp->multiplication.right = right;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_div(dsh_exp *left, dsh_exp *right)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_division;
-	exp->division.left = left;
-	exp->division.right = right;
-
-	return exp;
-}
-
-dsh_exp *dsh_alloc_exp_definition(dsh_id_list *variables, dsh_exp_list *assignments)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_definition;
-	exp->definition.variables = variables;
-	exp->definition.values = assignments;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_assignment(dsh_id_list *variables, dsh_exp_list *assignments)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_assignment;
-	exp->assignment.variables = variables;
-	exp->assignment.values = assignments;
-
-	return exp;
-}
-
-dsh_exp *dsh_alloc_exp_call(dsh_id *function, dsh_exp_list *parameters)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_call;
-	exp->call.function = function;
-	exp->call.parameters = parameters;
-
-	return exp;
-}
-
-dsh_exp *dsh_alloc_exp_block(dsh_exp_list *statements)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_block;
-	exp->block.statements = statements;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_if(dsh_exp *condition, dsh_exp_list *true_exp, dsh_exp_list *false_exp)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_if;
-	exp->if_else.condition = condition;
-	exp->if_else.true_exp = true_exp;
-	exp->if_else.false_exp = false_exp;
-
-	return exp;
-}
-dsh_exp *dsh_alloc_exp_while(dsh_exp *condition, dsh_exp_list *statement)
-{
-	dsh_exp *exp = (dsh_exp *)malloc(sizeof(dsh_exp));
-
-	if (exp == NULL)
-		return NULL;
-
-	exp->type = dsh_exp_type_while;
-	exp->while_loop.condition = condition;
-	exp->while_loop.exp = statement;
-
-	return exp;
-}
-
-void dsh_dealloc_exp(dsh_exp *exp)
-{
-	if (exp == NULL)
-		return;
-
-	switch (exp->type)
-	{
-		case dsh_exp_type_variable:
-			dsh_dealloc_id(exp->variable.identifier);
-			break;
-		case dsh_exp_type_integer:
-		case dsh_exp_type_real:
-			break;
-		case dsh_exp_type_cast:
-			dsh_dealloc_exp(exp->cast.value);
-			break;
-		case dsh_exp_type_addition:
-			dsh_dealloc_exp(exp->addition.left);
-			dsh_dealloc_exp(exp->addition.right);
-			break;
-		case dsh_exp_type_subtraction:
-			dsh_dealloc_exp(exp->subtraction.left);
-			dsh_dealloc_exp(exp->subtraction.right);
-			break;
-		case dsh_exp_type_multiplication:
-			dsh_dealloc_exp(exp->multiplication.left);
-			dsh_dealloc_exp(exp->multiplication.right);
-			break;
-		case dsh_exp_type_division:
-			dsh_dealloc_exp(exp->division.left);
-			dsh_dealloc_exp(exp->division.right);
-			break;
-
-		case dsh_exp_type_definition:
-			dsh_dealloc_exp_list(exp->definition.values);
-			dsh_dealloc_id_list(exp->definition.variables);
-			break;
-
-		case dsh_exp_type_assignment:
-			dsh_dealloc_exp_list(exp->assignment.values);
-			dsh_dealloc_id_list(exp->assignment.variables);
-			break;
-
-		case dsh_exp_type_call:
-			dsh_dealloc_exp_list(exp->call.parameters);
-			dsh_dealloc_id(exp->call.function);
-			break;
-
-		case dsh_exp_type_block:
-			dsh_dealloc_exp_list(exp->block.statements);
-			break;
-		case dsh_exp_type_if:
-			dsh_dealloc_exp(exp->if_else.condition);
-			dsh_dealloc_exp_list(exp->if_else.true_exp);
-			dsh_dealloc_exp_list(exp->if_else.false_exp);
-			break;
-		case dsh_exp_type_while:
-			dsh_dealloc_exp(exp->while_loop.condition);
-			dsh_dealloc_exp_list(exp->while_loop.exp);
-			break;
+		printf("\t");
+		--tabs_left;
 	}
 
-	free(exp);
-}
-
-dsh_exp_list *dsh_alloc_exp_list(dsh_exp_list *list, dsh_exp *value)
-{
-	if (list == NULL)
+	switch (statement->type)
 	{
-		list = (dsh_exp_list *)malloc(sizeof(dsh_exp_list));
+	case ast_statement_type_definition:
+		printf("variables definition\n");
+		ast_print_id_list(statement->definition.variables, tab_level + 1);
+		printf("\n\n");
+		ast_print_exp_list(statement->definition.values, tab_level + 1);
+		break;
 
-		if (list == NULL)
-			return NULL;
+	case ast_statement_type_assignment:
+		printf("variables assignment\n");
+		ast_print_id_list(statement->assignment.variables, tab_level + 1);
+		printf("\n\n");
+		ast_print_exp_list(statement->assignment.values, tab_level + 1);
+		break;
 
-		list->next = list;
-		list->prev = list;
-		list->value = value;
-	}
-	else
-	{
-		dsh_exp_list *next = (dsh_exp_list *)malloc(sizeof(dsh_exp_list));
+	case ast_statement_type_call:
+		printf("call ");
+		ast_print_id(statement->call.function, 0);
+		printf("\n");
+		ast_print_exp_list(statement->call.parameters, tab_level + 1);
+		break;
 
-		if (next == NULL)
-			return NULL;
+	case ast_statement_type_block:
+		printf("block\n");
+		ast_print_statement_list(statement->block.statements, tab_level + 1);
+		break;
 
-		next->value = value;
-		next->next = list;
-		next->prev = list->prev;
+	case ast_statement_type_if:
+		printf("if\n");
+		ast_print_exp(statement->if_else.condition, tab_level + 1);
+		printf("\n\n");
+		ast_print_statement(statement->if_else.true_statement, tab_level + 1);
+		printf("\n\n");
+		ast_print_statement(statement->if_else.false_statement, tab_level + 1);
+		break;
 
-		list->prev->next = next;
-		list->prev = next;
-	}
+	case ast_statement_type_while:
+		printf("while\n");
+		ast_print_exp(statement->while_loop.condition, tab_level + 1);
+		printf("\n\n");
+		ast_print_statement(statement->while_loop.loop_statement, tab_level + 1);
+		break;
 
-	return list;
-}
-void dsh_dealloc_exp_list(dsh_exp_list *list)
-{
-	dsh_exp_list *current = list;
-	dsh_exp_list *next = NULL;
-
-	while (current != NULL)
-	{
-		next = current->next;
-
-		dsh_dealloc_exp(current->value);
-		free(current);
-
-		current = next;
-
-		if (current == list)
-			break;
+	default:
+		printf("{unknown statement}\n");
+		break;
 	}
 }
-
-void dsh_print_exp(dsh_exp *exp, int tab_level)
+void ast_print_exp(ast_exp *exp, int tab_level)
 {
 	int tabs_left = tab_level;
 	while (tabs_left > 0)
@@ -509,94 +888,88 @@ void dsh_print_exp(dsh_exp *exp, int tab_level)
 
 	switch (exp->type)
 	{
-	case dsh_exp_type_variable:
+	case ast_exp_type_variable:
 		printf("variable (");
-		dsh_print_id(exp->variable.identifier, 0);
+		ast_print_id(exp->variable.id, 0);
 		printf(")");
 		break;
 
-	case dsh_exp_type_integer:
+	case ast_exp_type_integer:
 		printf("integer (%d)", exp->integer.value);
 		break;
 
-	case dsh_exp_type_real:
+	case ast_exp_type_real:
 		printf("real (%f)", exp->real.value);
 		break;
 
-	case dsh_exp_type_cast:
+	case ast_exp_type_cast:
 		printf("cast to ");
-		dsh_print_type(exp->cast.dest_type, 0);
+		ast_print_type(exp->cast.dest_type, 0);
 		printf("\n");
-		dsh_print_exp(exp->cast.value, tab_level + 1);
+		ast_print_exp(exp->cast.value, tab_level + 1);
 		break;
 
-	case dsh_exp_type_addition:
+	case ast_exp_type_addition:
 		printf("addition\n");
-		dsh_print_exp(exp->addition.left, tab_level + 1);
+		ast_print_exp(exp->operator.left, tab_level + 1);
 		printf("\n");
-		dsh_print_exp(exp->addition.right, tab_level + 1);
+		ast_print_exp(exp->operator.right, tab_level + 1);
 		break;
 
-	case dsh_exp_type_subtraction:
+	case ast_exp_type_subtraction:
 		printf("subtraction\n");
-		dsh_print_exp(exp->subtraction.left, tab_level + 1);
+		ast_print_exp(exp->operator.left, tab_level + 1);
 		printf("\n");
-		dsh_print_exp(exp->subtraction.right, tab_level + 1);
+		ast_print_exp(exp->operator.right, tab_level + 1);
 		break;
 
-	case dsh_exp_type_multiplication:
+	case ast_exp_type_multiplication:
 		printf("multiplication\n");
-		dsh_print_exp(exp->multiplication.left, tab_level + 1);
+		ast_print_exp(exp->operator.left, tab_level + 1);
 		printf("\n");
-		dsh_print_exp(exp->multiplication.right, tab_level + 1);
+		ast_print_exp(exp->operator.right, tab_level + 1);
 		break;
-	case dsh_exp_type_division:
+
+	case ast_exp_type_division:
 		printf("division\n");
-		dsh_print_exp(exp->division.left, tab_level + 1);
+		ast_print_exp(exp->operator.left, tab_level + 1);
 		printf("\n");
-		dsh_print_exp(exp->division.right, tab_level + 1);
+		ast_print_exp(exp->operator.right, tab_level + 1);
+		break;
+	
+	case ast_exp_type_less:
+		printf("less\n");
+		ast_print_exp(exp->operator.left, tab_level + 1);
+		printf("\n");
+		ast_print_exp(exp->operator.right, tab_level + 1);
 		break;
 
-	case dsh_exp_type_definition:
-		printf("variables definition\n");
-		dsh_print_id_list(exp->definition.variables, tab_level + 1);
-		printf("\n\n");
-		dsh_print_exp_list(exp->assignment.values, tab_level + 1);
+	case ast_exp_type_less_eq:
+		printf("less eq\n");
+		ast_print_exp(exp->operator.left, tab_level + 1);
+		printf("\n");
+		ast_print_exp(exp->operator.right, tab_level + 1);
 		break;
 
-	case dsh_exp_type_assignment:
-		printf("variables assignment\n");
-		dsh_print_id_list(exp->assignment.variables, tab_level + 1);
-		printf("\n\n");
-		dsh_print_exp_list(exp->assignment.values, tab_level + 1);
+	case ast_exp_type_greater:
+		printf("greater\n");
+		ast_print_exp(exp->operator.left, tab_level + 1);
+		printf("\n");
+		ast_print_exp(exp->operator.right, tab_level + 1);
 		break;
 
-	case dsh_exp_type_call:
+	case ast_exp_type_greater_eq:
+		printf("greater eq\n");
+		ast_print_exp(exp->operator.left, tab_level + 1);
+		printf("\n");
+		ast_print_exp(exp->operator.right, tab_level + 1);
+		break;
+
+	case ast_exp_type_call:
 		printf("call ");
-		dsh_print_id(exp->call.function, 0);
+		ast_print_id(exp->call.function, 0);
 		printf("\n");
-		dsh_print_exp_list(exp->call.parameters, tab_level + 1);
-		break;
-
-	case dsh_exp_type_block:
-		printf("block\n");
-		dsh_print_exp_list(exp->block.statements, tab_level + 1);
-		break;
-
-	case dsh_exp_type_if:
-		printf("if\n");
-		dsh_print_exp(exp->if_else.condition, tab_level + 1);
-		printf("\n\n");
-		dsh_print_exp_list(exp->if_else.true_exp, tab_level + 1);
-		printf("\n\n");
-		dsh_print_exp_list(exp->if_else.false_exp, tab_level + 1);
-		break;
-
-	case dsh_exp_type_while:
-		printf("while\n");
-		dsh_print_exp(exp->while_loop.condition, tab_level + 1);
-		printf("\n\n");
-		dsh_print_exp_list(exp->while_loop.exp, tab_level + 1);
+		ast_print_exp_list(exp->call.parameters, tab_level + 1);
 		break;
 
 	default:
@@ -604,13 +977,58 @@ void dsh_print_exp(dsh_exp *exp, int tab_level)
 		break;
 	}
 }
-void dsh_print_exp_list(dsh_exp_list *list, int tab_level)
+void ast_print_func_param(ast_func_param *function_param, int tab_level)
 {
-	dsh_exp_list *current = list;
+	int tabs_left = tab_level;
+	while (tabs_left > 0)
+	{
+		printf("\t");
+		--tabs_left;
+	}
+
+	if (function_param == NULL)
+	{
+		printf("{null}");
+	}
+	else
+	{
+		ast_print_id(function_param->id, 0);
+		printf(" : ");
+		ast_print_type(function_param->type, 0);
+	}
+}
+void ast_print_func(ast_func *function)
+{
+	if (function == NULL)
+	{
+		printf("{null}");
+	}
+	else
+	{
+		printf("function ");
+		ast_print_id(function->id, 0);
+		printf("\n");
+		
+		printf("in params\n");
+		ast_print_func_param_list(function->in_params, 1);
+		printf("\n");
+		
+		printf("out types\n");
+		ast_print_type_list(function->out_types, 1);
+		printf("\n");
+
+		printf("code\n");
+		ast_print_statement(function->statement, 1);
+	}
+}
+
+void ast_print_type_list(ast_type_list *list, int tab_level)
+{
+	ast_type_list *current = list;
 
 	while (current != NULL)
 	{
-		dsh_print_exp(current->value, tab_level);
+		ast_print_type(current->value, tab_level);
 
 		current = current->next;
 
@@ -624,116 +1042,93 @@ void dsh_print_exp_list(dsh_exp_list *list, int tab_level)
 		}
 	}
 }
-
-/* Dash Function */
-
-dsh_func *dsh_alloc_func(dsh_id *name, dsh_exp_list *parameters, dsh_type_list *out_types, dsh_exp_list *code)
+void ast_print_id_list(ast_id_list *list, int tab_level)
 {
-	dsh_func *func = (dsh_func *)malloc(sizeof(dsh_func));
-
-	if (func == NULL)
-		return NULL;
-
-	func->name = name;
-	func->parameters = parameters;
-	func->out_types = out_types;
-	func->code = code;
-	
-	return func;
-}
-void dsh_dealloc_func(dsh_func *func)
-{
-	if (func == NULL)
-		return;
-
-	dsh_dealloc_id(func->name);
-	dsh_dealloc_exp_list(func->parameters);
-	dsh_dealloc_type_list(func->out_types);
-	dsh_dealloc_exp_list(func->code);
-
-	free(func);
-}
-
-dsh_func_list *dsh_alloc_func_list(dsh_func_list *list, dsh_func *value)
-{
-	if (list == NULL)
-	{
-		list = (dsh_func_list *)malloc(sizeof(dsh_func_list));
-
-		if (list == NULL)
-			return NULL;
-
-		list->next = list;
-		list->prev = list;
-		list->value = value;
-	}
-	else
-	{
-		dsh_func_list *next = (dsh_func_list *)malloc(sizeof(dsh_func_list));
-
-		if (next == NULL)
-			return NULL;
-
-		next->value = value;
-		next->next = list;
-		next->prev = list->prev;
-
-		list->prev->next = next;
-		list->prev = next;
-	}
-
-	return list;
-}
-void dsh_dealloc_func_list(dsh_func_list *list)
-{
-	dsh_func_list *current = list;
-	dsh_func_list *next = NULL;
+	ast_id_list *current = list;
 
 	while (current != NULL)
 	{
-		next = current->next;
+		ast_print_id(current->value, tab_level);
 
-		dsh_dealloc_func(current->value);
-		free(current);
-
-		current = next;
+		current = current->next;
 
 		if (current == list)
+		{
 			break;
+		}
+		else
+		{
+			printf("\n");
+		}
 	}
 }
-
-void dsh_print_func(dsh_func *function)
+void ast_print_statement_list(ast_statement_list *list, int tab_level)
 {
-	if (function == NULL)
-	{
-		printf("{null}");
-	}
-	else
-	{
-		printf("function ");
-		dsh_print_id(function->name, 0);
-		printf("\n");
-		
-		printf("parameters\n");
-		dsh_print_exp_list(function->parameters, 1);
-		printf("\n");
-		
-		printf("output types");
-		dsh_print_type_list(function->out_types, 1);
-		printf("\n");
-
-		printf("code");
-		dsh_print_exp_list(function->code, 1);
-	}
-}
-void dsh_print_func_list(dsh_func_list *list)
-{
-	dsh_func_list *current = list;
+	ast_statement_list *current = list;
 
 	while (current != NULL)
 	{
-		dsh_print_func(current->value);
+		ast_print_statement(current->value, tab_level);
+
+		current = current->next;
+
+		if (current == list)
+		{
+			break;
+		}
+		else
+		{
+			printf("\n");
+		}
+	}
+}
+void ast_print_exp_list(ast_exp_list *list, int tab_level)
+{
+	ast_exp_list *current = list;
+
+	while (current != NULL)
+	{
+		ast_print_exp(current->value, tab_level);
+
+		current = current->next;
+
+		if (current == list)
+		{
+			break;
+		}
+		else
+		{
+			printf("\n");
+		}
+	}
+}
+void ast_print_func_param_list(ast_func_param_list *list, int tab_level)
+{
+	ast_func_param_list *current = list;
+
+	while (current != NULL)
+	{
+		ast_print_func_param(current->value, tab_level);
+
+		current = current->next;
+
+		if (current == list)
+		{
+			break;
+		}
+		else
+		{
+			printf("\n");
+		}
+	}
+}
+void ast_print_func_list(ast_func_list *list)
+{
+	ast_func_list *current = list;
+
+	while (current != NULL)
+	{
+		ast_print_func(current->value);
 
 		current = current->next;
 

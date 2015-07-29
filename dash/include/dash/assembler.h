@@ -1,6 +1,0 @@
-#ifndef dash_assembler_h
-#define dash_assembler_h
-
-int dsh_assemble(const char *assembly_filename, const char *obj_filename);
-
-#endif

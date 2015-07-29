@@ -11,23 +11,23 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\dash\assembler.h" />
-    <ClInclude Include="include\dash\compiler.h" />
+    <ClInclude Include="src\context.h" />
+    <ClInclude Include="src\hash.h" />
     <ClInclude Include="include\dash\var.h" />
-    <ClInclude Include="include\dash\vm.h" />
+    <ClInclude Include="include\dash\context.h" />
     <ClInclude Include="src\compiler\ast.h" />
     <ClInclude Include="src\bytecode.h" />
     <ClInclude Include="src\compiler\parser.h" />
-    <ClInclude Include="src\stack.h" />
-    <ClInclude Include="src\string.h" />
+    <ClInclude Include="src\context\stack.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\assembler.c" />
     <ClCompile Include="src\compiler\ast.c" />
-    <ClCompile Include="src\compiler\compiler.c" />
+    <ClCompile Include="src\compiler\codegen.c" />
     <ClCompile Include="src\compiler\lexer.c" />
     <ClCompile Include="src\compiler\parser.c" />
-    <ClCompile Include="src\vm.c" />
+    <ClCompile Include="src\context\exec.c" />
+    <ClCompile Include="src\context\context.c" />
+    <ClCompile Include="src\context\import.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\compiler\lexer.l" />

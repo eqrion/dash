@@ -34,7 +34,7 @@
 # define YY_YY_PARSER_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
-# define YYDEBUG 1
+# define YYDEBUG 0
 #endif
 #if YYDEBUG
 extern int yydebug;
@@ -54,7 +54,16 @@ extern int yydebug;
     TOKEN_LET = 264,
     TOKEN_WHILE = 265,
     TOKEN_IF = 266,
-    TOKEN_ELSE = 267
+    TOKEN_ELSE = 267,
+    TOKEN_RETURN = 268,
+    TOKEN_OP_ADD = 269,
+    TOKEN_OP_SUB = 270,
+    TOKEN_OP_MUL = 271,
+    TOKEN_OP_DIV = 272,
+    TOKEN_OP_LESS = 273,
+    TOKEN_OP_LESS_EQ = 274,
+    TOKEN_OP_GREATER = 275,
+    TOKEN_OP_GREATER_EQ = 276
   };
 #endif
 
@@ -65,20 +74,24 @@ union YYSTYPE
 {
 #line 17 "parser.y" /* yacc.c:1909  */
 
-	dsh_type		 type;
-	dsh_type_list	*type_list;
-	dsh_id			*identifier;
-	dsh_id_list		*identifier_list;
-	dsh_exp			*expression;
-	dsh_exp_list	*expression_list;
-	dsh_func		*function;
-	dsh_func_list	*function_list;
+	ast_type			 type;
+	ast_type_list		*type_list;
+	char				*identifier;
+	ast_id_list			*identifier_list;
+	ast_statement		*statement;
+	ast_statement_list	*statement_list;
+	ast_exp				*expression;
+	ast_exp_list		*expression_list;
+	ast_func_param		*function_param;
+	ast_func_param_list	*function_param_list;
+	ast_func			*function; 
+	ast_func_list		*function_list;
 
-	int			integer;
-	float		real;
-	char*		string;
+	int			 integer;
+	float		 real;
+	char		*string;
 
-#line 82 "parser.h" /* yacc.c:1909  */
+#line 95 "parser.h" /* yacc.c:1909  */
 };
 
 typedef union YYSTYPE YYSTYPE;
@@ -102,6 +115,6 @@ struct YYLTYPE
 
 
 
-int yyparse (dsh_func_list **parsed_module, void *scanner);
+int yyparse (ast_func_list **parsed_module, void *scanner);
 
 #endif /* !YY_YY_PARSER_H_INCLUDED  */
