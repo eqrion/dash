@@ -1,5 +1,4 @@
-#include "dash/assembler.h"
-#include "dash/vm.h"
+#include "dash/context.h"
 
 #include <stdio.h>
 
@@ -7,50 +6,43 @@ int main(int argc, char **argv)
 {
 	if (argc != 2)
 	{
-		printf("dash exc\nusage:\n\tdash_exc <src_filename>\n");
+		printf("dash compiler\nusage:\n\tdash_compiler <src_filename>\n");
 		return 1;
 	}
 
-	if (!dsh_assemble(argv[1], "out.dib"))
+	struct dsh_context *context = NULL;
+
+	if (!dsh_create_context(&context, 1, 64))
 	{
-		fprintf(stderr, "error compiling source file. terminating.\n");
-		return 2;
+		fprintf(stderr, "error initializing dash.");
+		return 1;
 	}
 
-	struct dsh_lib *obj = NULL;
-	
-	if (!dsh_load_lib(&obj, "out.dib"))
+	if (dsh_context_import_source(argv[1], context))
 	{
-		fprintf(stderr, "error loading out.dib.\n");
-		return 3;
-	}
+		dsh_var in[1];
+		dsh_var out[1];
 
-	dsh_var in[2];
-	dsh_var out;
+		in[0].i = 10000000;
+		
+		struct dsh_function_def *func = dsh_context_find_func("pi", context);
 
-	in[0].i = 2;
-	in[1].i = 0;
-	out.i = 0;
+		dsh_context_dissasm_func(func, stdout, context);
 
-	while (in[1].i < 20)
-	{
-		if (dsh_exec_func(obj, 0, in, &out))
+		printf("\n");
+
+		if (dsh_context_exec_func(func, in, out, context))
 		{
-			printf("f(%i, %i) = %i\n", in[0].i, in[1].i, out.i);
+			printf("pi = %f\n", out[0].f);
 		}
 		else
 		{
-			fprintf(stderr, "execution error, terminating.\n");
-			break;
+			fprintf(stderr, "execution error\n");
 		}
-
-		++in[1].i;
 	}
-
-	if (obj != NULL)
+	else
 	{
-		dsh_destroy_lib(obj);
-		obj = NULL;
+		fprintf(stderr, "compilation error\n");
 	}
 
 	return 0;

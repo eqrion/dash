@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{838363AD-5E9D-4C44-8900-454316BB0E6A}</ProjectGuid>
+    <ProjectGuid>{10CDDD2A-96EB-4900-8431-27E58204C218}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>cash_asm</RootNamespace>
     <TargetPlatformVersion>8.1</TargetPlatformVersion>

@@ -158,7 +158,7 @@ int		dsh_funcgen_context_is_named(size_t reg_index, dsh_funcgen_context *funcgen
 }
 int		dsh_funcgen_context_is_temp(size_t reg_index, dsh_funcgen_context *funcgen)
 {
-	return reg_index < funcgen->vars_named_count + funcgen->vars_temp_count;
+	return reg_index >= funcgen->vars_named_count;
 }
 
 dsh_var_binding *dsh_funcgen_context_map(const char *name, dsh_funcgen_context *funcgen)
@@ -772,7 +772,7 @@ int dsh_import_statement(
 			} while (current != statement->block.statements);
 		}
 
-		dsh_funcgen_context_pop_named_to(base_register, funcgen);
+		dsh_funcgen_context_pop_named_past(base_register, funcgen);
 
 		return 1;
 	}
@@ -797,7 +797,10 @@ int dsh_import_statement(
 
 		// We don't need to reserve this condition register past the first jmpc
 
-		dsh_funcgen_context_pop_temp_past(cond_register, funcgen);
+		if (dsh_funcgen_context_is_temp(cond_register, funcgen))
+		{
+			dsh_funcgen_context_pop_temp_past(cond_register, funcgen);
+		}
 
 		// Write the jmp that will skip the false block and execute the true block
 
@@ -871,7 +874,10 @@ int dsh_import_statement(
 
 		// We don't need to reserve this condition register after the jmpc
 
-		dsh_funcgen_context_pop_temp_past(cond_register, funcgen);
+		if (dsh_funcgen_context_is_temp(cond_register, funcgen))
+		{
+			dsh_funcgen_context_pop_temp_past(cond_register, funcgen);
+		}
 
 		// Write the jmp to skip the block
 

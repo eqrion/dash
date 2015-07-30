@@ -1,0 +1,13 @@
+def pi : (term : integer) -> (real)
+{
+	let n, sum = 0, 0.0;
+	
+	while (n <= term)
+	{
+		sum = sum + 2.0 / ((4.0 * (real)n + 1.0) * (4.0 * (real)n + 3.0));
+
+		n = n + 1;
+	};
+
+	return sum * 4.0;
+}

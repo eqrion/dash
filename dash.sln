@@ -1,16 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.22823.1
+VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dash", "dash\dash.vcxproj", "{450818FC-8F6D-4D77-A4AF-6010F32B7AA8}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dash_asm", "dash_asm\dash_asm.vcxproj", "{10CDDD2A-96EB-4900-8431-27E58204C218}"
-	ProjectSection(ProjectDependencies) = postProject
-		{450818FC-8F6D-4D77-A4AF-6010F32B7AA8} = {450818FC-8F6D-4D77-A4AF-6010F32B7AA8}
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dash_exc", "dash_exc\dash_exc.vcxproj", "{838363AD-5E9D-4C44-8900-454316BB0E6A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dash_exc", "dash_exc\dash_exc.vcxproj", "{10CDDD2A-96EB-4900-8431-27E58204C218}"
 	ProjectSection(ProjectDependencies) = postProject
 		{450818FC-8F6D-4D77-A4AF-6010F32B7AA8} = {450818FC-8F6D-4D77-A4AF-6010F32B7AA8}
 	EndProjectSection
@@ -29,10 +24,6 @@ Global
 		{10CDDD2A-96EB-4900-8431-27E58204C218}.Debug|x86.Build.0 = Debug|Win32
 		{10CDDD2A-96EB-4900-8431-27E58204C218}.Release|x86.ActiveCfg = Release|Win32
 		{10CDDD2A-96EB-4900-8431-27E58204C218}.Release|x86.Build.0 = Release|Win32
-		{838363AD-5E9D-4C44-8900-454316BB0E6A}.Debug|x86.ActiveCfg = Debug|Win32
-		{838363AD-5E9D-4C44-8900-454316BB0E6A}.Debug|x86.Build.0 = Debug|Win32
-		{838363AD-5E9D-4C44-8900-454316BB0E6A}.Release|x86.ActiveCfg = Release|Win32
-		{838363AD-5E9D-4C44-8900-454316BB0E6A}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
