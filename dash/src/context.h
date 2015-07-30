@@ -42,7 +42,4 @@ dsh_function_def	*dsh_context_push_function(size_t amount, dsh_context *context)
 void dsh_context_pop_bytecode(size_t amount, dsh_context *context);
 void dsh_context_pop_function(size_t amount, dsh_context *context);
 
-dsh_function_def	*dsh_context_find_function(uint32_t hashed_name, dsh_context *context);
-size_t				 dsh_context_find_function_index(uint32_t hashed_name, dsh_context *context);
-
 #endif

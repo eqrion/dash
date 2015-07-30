@@ -175,7 +175,7 @@ ast_exp *ast_create_exp_add(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -193,7 +193,7 @@ ast_exp *ast_create_exp_sub(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -211,7 +211,7 @@ ast_exp *ast_create_exp_mul(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -229,7 +229,7 @@ ast_exp *ast_create_exp_div(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -247,7 +247,7 @@ ast_exp *ast_create_exp_cmp_l(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -265,7 +265,7 @@ ast_exp *ast_create_exp_cmp_le(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -283,7 +283,7 @@ ast_exp *ast_create_exp_cmp_g(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -301,7 +301,7 @@ ast_exp *ast_create_exp_cmp_ge(ast_exp *left, ast_exp *right)
 	exp->operator.left = left;
 	exp->operator.right = right;
 	exp->temp_count_est = max(left->temp_count_est, right->temp_count_est) +
-		(left->temp_count_est == right->temp_count_est) ? 1 : 0;
+		((left->temp_count_est == right->temp_count_est) ? 1 : 0);
 
 	return exp;
 }
@@ -1132,13 +1132,11 @@ void ast_print_func_list(ast_func_list *list)
 
 		current = current->next;
 
+		printf("\n");
+
 		if (current == list)
 		{
 			break;
-		}
-		else
-		{
-			printf("\n");
 		}
 	}
 }

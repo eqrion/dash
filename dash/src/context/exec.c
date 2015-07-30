@@ -7,11 +7,9 @@
 #include <string.h>
 #include <stdio.h>
 
-int dsh_context_exec_func(struct dsh_context *context, const char *func_name, const dsh_var *func_parameters, dsh_var *func_results)
+int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func_parameters, dsh_var *func_results, struct dsh_context *context)
 {
-	uint32_t func_index = (uint32_t)dsh_context_find_function_index(dsh_hash(func_name), context);
-
-	if (func_index >= context->function_count)
+	if (function == NULL)
 	{
 		fprintf(stderr, "invalid function.\n");
 		return 0;
@@ -19,8 +17,8 @@ int dsh_context_exec_func(struct dsh_context *context, const char *func_name, co
 
 	// Execution variables 
 
-	uint32_t					cur_func_index = func_index;
-	struct dsh_function_def    *cur_func = &context->function[func_index];
+	uint32_t					cur_func_index = function - context->function;
+	struct dsh_function_def    *cur_func = &context->function[cur_func_index];
 	uint32_t					cur_pc = cur_func->bytecode_start;
 	uint32_t					cur_frame_size = cur_func->reg_count_in + cur_func->reg_count_use;
 
@@ -191,8 +189,8 @@ int dsh_context_exec_func(struct dsh_context *context, const char *func_name, co
 				sizeof(dsh_var) * cur_func->reg_count_out
 				);
 
-			func_index = returning_func_index.u;
-			cur_func = &context->function[func_index];
+			cur_func_index = returning_func_index.u;
+			cur_func = &context->function[cur_func_index];
 			cur_frame_size = returning_func_frame_size.u;
 			cur_pc = returning_cur_pc.u;
 
@@ -282,22 +280,6 @@ int dsh_context_exec_func(struct dsh_context *context, const char *func_name, co
 			break;
 		}
 
-		case dsh_opcode_jmp_u:
-		{
-			uint16_t offset = (instruction.b << 8) | (instruction.c);
-
-			cur_pc += *(int16_t *)&offset;
-
-			if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
-			{
-				fprintf(stderr, "jmp to outside of the current function.\n");
-				goto execution_error;
-			}
-
-			// Skip the normal increment
-
-			continue;
-		}
 		case dsh_opcode_jmp_c:
 		{
 			if (instruction.a >= cur_frame_size)
@@ -308,9 +290,9 @@ int dsh_context_exec_func(struct dsh_context *context, const char *func_name, co
 
 			if (stack.reg_current[instruction.a].i)
 			{
-				uint16_t offset = (instruction.b << 8) | (instruction.c);
+				uint8_t offset = instruction.c;
 
-				cur_pc += *(int16_t *)&offset;
+				cur_pc += *(int8_t *)&offset;
 
 				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
 				{
@@ -324,6 +306,49 @@ int dsh_context_exec_func(struct dsh_context *context, const char *func_name, co
 			}
 
 			break;
+		}
+		case dsh_opcode_jmp_cn:
+		{
+			if (instruction.a >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			if (!stack.reg_current[instruction.a].i)
+			{
+				uint8_t offset = instruction.c;
+
+				cur_pc += *(int8_t *)&offset;
+
+				if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
+				{
+					fprintf(stderr, "jmp to outside of the current function.\n");
+					goto execution_error;
+				}
+
+				// Skip the normal increment
+
+				continue;
+			}
+
+			break;
+		}
+		case dsh_opcode_jmp_u:
+		{
+			uint8_t offset = instruction.c;
+
+			cur_pc += *(int8_t *)&offset;
+
+			if (cur_pc >= cur_func->bytecode_end || cur_pc < cur_func->bytecode_start)
+			{
+				fprintf(stderr, "jmp to outside of the current function.\n");
+				goto execution_error;
+			}
+
+			// Skip the normal increment
+
+			continue;
 		}
 
 		case dsh_opcode_addi:

@@ -19,22 +19,23 @@ enum dsh_opcode
 	dsh_opcode_cmpf_le = 8,
 
 	dsh_opcode_jmp_c = 9,
-	dsh_opcode_jmp_u = 10,
+	dsh_opcode_jmp_cn = 10,
+	dsh_opcode_jmp_u = 11,
 		
-	dsh_opcode_addi = 11,
-	dsh_opcode_addf = 12,
+	dsh_opcode_addi = 12,
+	dsh_opcode_addf = 13,
 	
-	dsh_opcode_subi = 13,
-	dsh_opcode_subf = 14,
+	dsh_opcode_subi = 14,
+	dsh_opcode_subf = 15,
 
-	dsh_opcode_muli = 15,
-	dsh_opcode_mulf = 16,
+	dsh_opcode_muli = 16,
+	dsh_opcode_mulf = 17,
 
-	dsh_opcode_divi = 17,
-	dsh_opcode_divf = 18,
+	dsh_opcode_divi = 18,
+	dsh_opcode_divf = 19,
 
-	dsh_opcode_casti = 19,
-	dsh_opcode_castf = 20,
+	dsh_opcode_casti = 20,
+	dsh_opcode_castf = 21,
 };
 
 struct dsh_bc

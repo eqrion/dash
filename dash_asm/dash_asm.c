@@ -34,7 +34,11 @@ int main(int argc, char **argv)
 		in[0].f = 5;
 		in[1].f = 7;
 		
-		if (dsh_context_exec_func(context, "mult_plus_one", in, out))
+		struct dsh_function_def *func = dsh_context_find_func("mult_plus_one", context);
+
+		dsh_context_dissasm_func(func, stdout, context);
+
+		if (dsh_context_exec_func(func, in, out, context))
 		{
 			printf("f(%f, %f) = %f\n", in[0].f, in[1].f, out[0].f);
 		}
@@ -45,7 +49,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		fprintf(stderr, "compilcation error\n");
+		fprintf(stderr, "compilation error\n");
 	}
 
 	return 0;

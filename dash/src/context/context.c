@@ -1,4 +1,5 @@
 #include "../context.h"
+#include "../hash.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -146,8 +147,10 @@ void dsh_context_pop_function(size_t amount, dsh_context *context)
 	}
 }
 
-dsh_function_def *dsh_context_find_function(uint32_t hashed_name, dsh_context *context)
+dsh_function_def *dsh_context_find_func(const char *name, dsh_context *context)
 {
+	uint32_t hashed_name = dsh_hash(name);
+
 	for (size_t i = 0; i < context->function_count; ++i)
 	{
 		if (context->function[i].hashed_name == hashed_name)
@@ -156,13 +159,135 @@ dsh_function_def *dsh_context_find_function(uint32_t hashed_name, dsh_context *c
 
 	return NULL;
 }
-size_t dsh_context_find_function_index(uint32_t hashed_name, dsh_context *context)
+
+void dsh_context_dissasm_func(dsh_function_def *function, FILE *out, dsh_context *context)
 {
-	for (size_t i = 0; i < context->function_count; ++i)
+	if (function->c_function != NULL)
 	{
-		if (context->function[i].hashed_name == hashed_name)
-			return i;
+		printf("c-func - in: %u use: %u out: %u\n", function->reg_count_in, function->reg_count_use, function->reg_count_out);
+	}
+	else
+	{
+		printf("dsh-func - in: %u use: %u out: %u\n", function->reg_count_in, function->reg_count_use, function->reg_count_out);
 	}
 
-	return ~0;
+	size_t cur_pc = function->bytecode_start;
+
+	while (cur_pc < function->bytecode_end)
+	{
+		dsh_bc bc = context->bytecode[cur_pc];
+
+		switch (bc.opcode)
+		{
+			case dsh_opcode_nop:
+				fprintf(out, "nop\n");
+				break;
+
+			case dsh_opcode_call:
+				fprintf(out, "call  func[%u] i%u o%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_ret:
+				fprintf(out, "ret   o%u\n", bc.a);
+				break;
+
+			case dsh_opcode_mov:
+				fprintf(out, "mov   r%u -> r%u\n", bc.a, bc.c);
+				break;
+
+			case dsh_opcode_stor:
+				++cur_pc;
+				fprintf(out, "stor  %i or %f -> r%u\n",
+					*(int32_t *)(&context->bytecode[cur_pc]),
+					*(float *)(&context->bytecode[cur_pc]),
+					bc.c);
+				break;
+
+			case dsh_opcode_cmpi_l:
+				fprintf(out, "cmpi  r%u < r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_cmpf_l:
+				fprintf(out, "cmpf  r%u < r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_cmpi_le:
+				fprintf(out, "cmpi  r%u <= r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_cmpf_le:
+				fprintf(out, "cmpf  r%u <= r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_jmp_c:
+			{
+				uint8_t offset = bc.c;
+
+				fprintf(out, "jmpc  r%u %i\n", bc.a, *(int8_t *)&offset);
+				break;
+			}
+
+			case dsh_opcode_jmp_cn:
+			{
+				uint8_t offset = bc.c;
+
+				fprintf(out, "jmpcn r%u %i\n", bc.a, *(int8_t *)&offset);
+				break;
+			}
+
+			case dsh_opcode_jmp_u:
+			{
+				uint8_t offset = bc.c;
+
+				fprintf(out, "jmpu  %i\n", *(int8_t *)&offset);
+				break;
+			}
+
+			case dsh_opcode_addi:
+				fprintf(out, "addi  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_addf:
+				fprintf(out, "addf  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_subi:
+				fprintf(out, "subi  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_subf:
+				fprintf(out, "subf  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_muli:
+				fprintf(out, "muli  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_mulf:
+				fprintf(out, "mulf  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_divi:
+				fprintf(out, "divi  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_divf:
+				fprintf(out, "divf  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+				break;
+
+			case dsh_opcode_casti:
+				fprintf(out, "casti r%u -> r%u\n", bc.a, bc.c);
+				break;
+
+			case dsh_opcode_castf:
+				fprintf(out, "castf r%u -> r%u\n", bc.a, bc.c);
+				break;
+
+		default:
+			fprintf(out, "unknown instruction\n");
+			break;
+		}
+
+		++cur_pc;
+	}
 }

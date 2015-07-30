@@ -44,6 +44,11 @@ struct dsh_funcgen_context
 typedef struct dsh_var_binding dsh_var_binding;
 typedef struct dsh_funcgen_context dsh_funcgen_context;
 
+int get_error_code()
+{
+	return (rand() % 3000) + 1000;
+}
+
 int	dsh_funcgen_context_create(size_t initial_var_capacity, ast_func *function, dsh_context *context, dsh_funcgen_context *funcgen)
 {
 	funcgen->vars_named_count = 0;
@@ -192,6 +197,7 @@ int dsh_import_expression(
 
 			if (binding == NULL)
 			{
+				fprintf(stderr, "error dsc%i: invalid variable identifier (%s)\n", get_error_code(), exp->variable.id);
 				return 0;
 			}
 
@@ -209,6 +215,7 @@ int dsh_import_expression(
 
 			if (result_reg == ~0)
 			{
+				fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
 				return 0;
 			}
 
@@ -216,6 +223,7 @@ int dsh_import_expression(
 
 			if (bc == NULL)
 			{
+				fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 				return 0;
 			}
 
@@ -259,6 +267,7 @@ int dsh_import_expression(
 				ast_type_list_is_integer(source_type) && exp->cast.dest_type == ast_type_integer ||
 				ast_type_list_is_real(source_type) && exp->cast.dest_type == ast_type_real)
 			{
+				fprintf(stderr, "error dsc%i: invalid cast expression\n", get_error_code());
 				return 0;
 			}
 
@@ -268,6 +277,7 @@ int dsh_import_expression(
 
 				if (result_register == ~0)
 				{
+					fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 					return 0;
 				}
 			}
@@ -276,10 +286,11 @@ int dsh_import_expression(
 				result_register = source_register;
 			}
 
-			dsh_bc *bc = dsh_funcgen_context_push_bc(1, funcgen->context);
+			dsh_bc *bc = dsh_funcgen_context_push_bc(1, funcgen);
 
 			if (bc == NULL)
 			{
+				fprintf(stderr, "error dsc%i: internal error, cannot bytecode \n", get_error_code());
 				return 0;
 			}
 
@@ -360,11 +371,13 @@ int dsh_import_expression(
 
 			if (ast_type_list_is_composite(left_exp_type) || ast_type_list_is_composite(right_exp_type))
 			{
+				fprintf(stderr, "error dsc%i: invalid operands to binary expression, cannot be composite types\n", get_error_code());
 				return 0;
 			}
 
 			if (left_exp_type->value != right_exp_type->value)
 			{
+				fprintf(stderr, "error dsc%i: invalid operands to binary expression, mismatch integer, real\n", get_error_code());
 				return 0;
 			}
 
@@ -377,27 +390,41 @@ int dsh_import_expression(
 
 				if (result_register == ~0)
 				{
+					fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
 					return 0;
 				}
 			}
 			else if (left_is_named)
 			{
 				result_register = right_exp_register;
+				dsh_funcgen_context_pop_temp_to(right_exp_register, funcgen);
 			}
 			else if (right_is_named)
 			{
 				result_register = left_exp_register;
+				dsh_funcgen_context_pop_temp_to(left_exp_register, funcgen);
 			}
 			else
 			{
-				result_register = left_exp_register;
-				dsh_funcgen_context_pop_temp_to(left_exp_register, funcgen);
+				// Use the lowest temporary register we can. This is will be the one for the expression executed first.
+
+				if (exp->operator.left->temp_count_est >= exp->operator.right->temp_count_est)
+				{
+					result_register = left_exp_register;
+					dsh_funcgen_context_pop_temp_to(left_exp_register, funcgen);
+				}
+				else
+				{
+					result_register = right_exp_register;
+					dsh_funcgen_context_pop_temp_to(right_exp_register, funcgen);
+				}
 			}
 
 			dsh_bc *bc = dsh_funcgen_context_push_bc(1, funcgen);
 
 			if (bc == NULL)
 			{
+				fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 				return 0;
 			}
  
@@ -478,11 +505,13 @@ int dsh_import_expression(
 
 		case ast_exp_type_call:
 		{
+			fprintf(stderr, "error dsc%i: calls are not implemented\n", get_error_code());
 			return 0;
 		}
 		break;
 	}
 
+	fprintf(stderr, "error dsc%i: internal error, invalid expression in ast\n", get_error_code());
 	return 0;
 }
 
@@ -493,7 +522,7 @@ int dsh_import_statement(
 {
 	switch (statement->type)
 	{
-	
+
 	case ast_statement_type_definition:
 	{
 		ast_id_list *cur_var = statement->definition.variables;
@@ -520,6 +549,7 @@ int dsh_import_statement(
 
 				if (exp_types == NULL)
 				{
+					fprintf(stderr, "error dsc%i: invalid definition, cannot have an expression with values\n", get_error_code());
 					return 0;
 				}
 
@@ -533,6 +563,7 @@ int dsh_import_statement(
 
 					if (var_reg == ~0)
 					{
+						fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
 						return 0;
 					}
 
@@ -544,6 +575,7 @@ int dsh_import_statement(
 
 						if (bc == NULL)
 						{
+							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 							return 0;
 						}
 
@@ -551,16 +583,16 @@ int dsh_import_statement(
 						bc[0].a = exp_reg_start + sub_val_index;
 						bc[0].c = var_reg;
 					}
-				
+
 					// Go to the next value of this expression
 
 					++sub_val_index;
 					sub_val_type = sub_val_type->next;
-					
+
 					// Go to the next var of this definition
 
 					cur_var = cur_var->next;
-					
+
 					if (sub_val_type == exp_types)
 						break;
 				}
@@ -572,6 +604,7 @@ int dsh_import_statement(
 
 				if (cur_var == statement->definition.variables && !(sub_val_type == exp_types || cur_exp == statement->definition.values))
 				{
+					fprintf(stderr, "error dsc%i: invalid definition, too many values\n", get_error_code());
 					return 0;
 				}
 
@@ -579,6 +612,7 @@ int dsh_import_statement(
 
 				if (cur_var != statement->definition.variables && cur_exp == statement->definition.values)
 				{
+					fprintf(stderr, "error dsc%i: invalid definition, not enough values\n", get_error_code());
 					return 0;
 				}
 
@@ -587,6 +621,7 @@ int dsh_import_statement(
 			return 1;
 		}
 
+		fprintf(stderr, "error dsc%i: invalid definition, zero ids or exps\n", get_error_code());
 		return 0;
 	}
 
@@ -616,6 +651,7 @@ int dsh_import_statement(
 
 				if (exp_types == NULL)
 				{
+					fprintf(stderr, "error dsc%i: invalid assignment, cannot have an expression with zero values\n", get_error_code());
 					return 0;
 				}
 
@@ -629,11 +665,13 @@ int dsh_import_statement(
 
 					if (var == NULL)
 					{
+						fprintf(stderr, "error dsc%i: invalid assignment, invalid variable identifier (%s)\n", get_error_code(), cur_var->value);
 						return 0;
 					}
 
 					if (var->type != sub_val_type->value)
 					{
+						fprintf(stderr, "error dsc%i: invalid assignment, value mismatches variable\n", get_error_code());
 						return 0;
 					}
 
@@ -645,16 +683,13 @@ int dsh_import_statement(
 
 						if (bc == NULL)
 						{
+							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 							return 0;
 						}
 
 						bc[0].opcode = dsh_opcode_mov;
 						bc[0].a = exp_reg_start + sub_val_index;
 						bc[0].c = var->reg_index;
-					}
-					else
-					{
-
 					}
 
 					// Go to the next value of this expression
@@ -665,7 +700,7 @@ int dsh_import_statement(
 					// Go to the next var of this definition
 
 					cur_var = cur_var->next;
-					
+
 					if (sub_val_type == exp_types)
 						break;
 				}
@@ -684,6 +719,7 @@ int dsh_import_statement(
 
 				if (cur_var == statement->assignment.variables && !(sub_val_type == exp_types || cur_exp == statement->assignment.values))
 				{
+					fprintf(stderr, "error dsc%i: invalid assignment, not enough vars\n", get_error_code());
 					return 0;
 				}
 
@@ -691,6 +727,7 @@ int dsh_import_statement(
 
 				if (cur_var != statement->assignment.variables && cur_exp == statement->assignment.values)
 				{
+					fprintf(stderr, "error dsc%i: invalid assignment, not enough values\n", get_error_code());
 					return 0;
 				}
 
@@ -699,11 +736,14 @@ int dsh_import_statement(
 			return 1;
 		}
 
+		fprintf(stderr, "error dsc%i: invalid assignment, zero ids or exps\n", get_error_code());
 		return 0;
 	}
 
 	case ast_statement_type_call:
 	{
+		fprintf(stderr, "error dsc%i: calls are not implemented\n", get_error_code());
+
 		return 0;
 
 		/*size_t call_index = dsh_context_find_function_index(dsh_hash(statement->call.function), funcgen->context);
@@ -742,6 +782,8 @@ int dsh_import_statement(
 		size_t			 cond_register;
 		ast_type_list	*cond_type;
 
+		// Write the if conditional first
+
 		if (!dsh_import_expression(statement->if_else.condition, &cond_register, &cond_type, funcgen))
 		{
 			return 0;
@@ -749,46 +791,60 @@ int dsh_import_statement(
 
 		if (!ast_type_list_is_integer(cond_type))
 		{
+			fprintf(stderr, "error dsc%i: invalid if statement, conditional must be an integer\n", get_error_code());
 			return 0;
 		}
 
 		// We don't need to reserve this condition register past the first jmpc
+
 		dsh_funcgen_context_pop_temp_past(cond_register, funcgen);
 
-		dsh_bc *jmp_to_true_statement = dsh_funcgen_context_push_bc(1, funcgen);
-			
-		if (jmp_to_true_statement == NULL)
+		// Write the jmp that will skip the false block and execute the true block
+
+		size_t	jmp_to_true_loc = funcgen->bytecode_allocated;
+		dsh_bc *jmp_to_true = dsh_funcgen_context_push_bc(1, funcgen);
+		if (jmp_to_true == NULL)
 		{
+			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 			return 0;
 		}
+		jmp_to_true[0].opcode = dsh_opcode_jmp_c;
+		jmp_to_true[0].a = cond_register;
 
-		size_t false_statement_start = funcgen->bytecode_allocated;
+		// Write the false statement
+
 		if (!dsh_import_statement(statement->if_else.false_statement, funcgen))
 		{
 			return 0;
 		}
-		size_t false_statement_end = funcgen->bytecode_allocated;
 
-		jmp_to_true_statement[0].opcode = dsh_opcode_jmp_c;
-		jmp_to_true_statement[0].a = cond_register;
-		jmp_to_true_statement[0].c = false_statement_end - false_statement_start + 1;
+		// Write the jmp to skip the true statement after the false statement
 
+		size_t	jmp_to_end_loc = funcgen->bytecode_allocated;
 		dsh_bc *jmp_to_end = dsh_funcgen_context_push_bc(1, funcgen);
-
 		if (jmp_to_end == NULL)
 		{
+			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 			return 0;
 		}
+		jmp_to_end[0].opcode = dsh_opcode_jmp_u;
 
-		size_t true_statement_start = funcgen->bytecode_allocated;
+		// Write the true statement
+
+		size_t true_statement_start_loc = funcgen->bytecode_allocated;
 		if (!dsh_import_statement(statement->if_else.true_statement, funcgen))
 		{
 			return 0;
 		}
-		size_t true_statement_end = funcgen->bytecode_allocated;
+		size_t true_statement_end_loc = funcgen->bytecode_allocated;
 
-		jmp_to_end[0].opcode = dsh_opcode_jmp_u;
-		jmp_to_end[0].c = true_statement_end - true_statement_start + 1;
+		// Resolve jmp offsets
+
+		int8_t offset1 = (int8_t)(((int)true_statement_start_loc) - ((int)jmp_to_true_loc));
+		jmp_to_true[0].c = *(uint8_t *)&offset1;
+
+		int8_t offset2 = (int8_t)((int)true_statement_end_loc - (int)jmp_to_end_loc);
+		jmp_to_end[0].c = *(uint8_t *)&offset2;
 
 		return 1;
 	}
@@ -798,7 +854,9 @@ int dsh_import_statement(
 		size_t			 cond_register;
 		ast_type_list	*cond_type;
 
-		size_t while_loop_start = funcgen->bytecode_allocated;
+		// Write the expression for the while condition
+
+		size_t cond_loc = funcgen->bytecode_allocated;
 
 		if (!dsh_import_expression(statement->while_loop.condition, &cond_register, &cond_type, funcgen))
 		{
@@ -807,38 +865,51 @@ int dsh_import_statement(
 
 		if (!ast_type_list_is_integer(cond_type))
 		{
+			fprintf(stderr, "error dsc%i: invalid while statement, conditional must be an integer\n", get_error_code());
 			return 0;
 		}
 
 		// We don't need to reserve this condition register after the jmpc
+
 		dsh_funcgen_context_pop_temp_past(cond_register, funcgen);
 
-		dsh_bc *jmp_to_end = dsh_funcgen_context_push_bc(1, funcgen);
-		if (jmp_to_end == NULL)
+		// Write the jmp to skip the block
+
+		size_t	jmp_break_loc = funcgen->bytecode_allocated;
+		dsh_bc *jmp_break = dsh_funcgen_context_push_bc(1, funcgen);
+		if (jmp_break == NULL)
 		{
+			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 			return 0;
 		}
+		jmp_break[0].opcode = dsh_opcode_jmp_cn;
+		jmp_break[0].a = cond_register;
+
+		// Write the while body
 
 		if (!dsh_import_statement(statement->while_loop.loop_statement, funcgen))
 		{
 			return 0;
 		}
-		size_t body_end = funcgen->bytecode_allocated;
 
-		dsh_bc *jmp_to_start = dsh_funcgen_context_push_bc(1, funcgen);
-		if (jmp_to_start == NULL)
+		// Write the jmp to go back to the conditional
+
+		size_t	jmp_continue_loc = funcgen->bytecode_allocated;
+		dsh_bc *jmp_continue = dsh_funcgen_context_push_bc(1, funcgen);
+		if (jmp_continue == NULL)
 		{
+			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 			return 0;
 		}
+		jmp_continue[0].opcode = dsh_opcode_jmp_u;
 
-		int32_t offset = -(int32_t)(body_end - while_loop_start + 1);
-		jmp_to_start[0].opcode = dsh_opcode_jmp_u;
-		jmp_to_start[0].c = *(uint32_t *)(&offset);
+		// Resolve the jmp offsets
 
-		size_t while_loop_end = funcgen->bytecode_allocated;
-		jmp_to_end[0].opcode = dsh_opcode_jmp_c;
-		jmp_to_end[0].a = cond_register;
-		jmp_to_end[0].c = while_loop_end - while_loop_start + 1;
+		int8_t offset1 = (int8_t)((int)cond_loc - (int)jmp_continue_loc);
+		jmp_continue[0].c = *(uint8_t *)&offset1;
+
+		int8_t offset2 = (int8_t)((int)jmp_continue_loc + 1 - (int)jmp_break_loc);
+		jmp_break[0].c = *(uint8_t *)&offset2;
 
 		return 1;
 	}
@@ -850,13 +921,20 @@ int dsh_import_statement(
 
 		if (cur_out == NULL && cur_exp != NULL)
 		{
+			fprintf(stderr, "error dsc%i: invalid return statement, no out values expected in function\n", get_error_code());
 			return 0;
 		}
 
 		size_t last_out_register = 0;
 		size_t out_count = 0;
 
-		if (cur_out != NULL && cur_exp != NULL)
+		if (cur_out == NULL && cur_exp != NULL)
+		{
+			fprintf(stderr, "error dsc%i: invalid return statement, expected no out values\n", get_error_code());
+			return 0;
+		}
+
+		if (cur_exp != NULL)
 		{
 			do
 			{
@@ -874,6 +952,7 @@ int dsh_import_statement(
 
 				if (exp_types == NULL)
 				{
+					fprintf(stderr, "error dsc%i: invalid return statement, cannot have an expression with zero values\n", get_error_code());
 					return 0;
 				}
 
@@ -893,6 +972,7 @@ int dsh_import_statement(
 				{
 					if (sub_val_type->value != cur_out->value)
 					{
+						fprintf(stderr, "error dsc%i: invalid return statement, out type mismatch\n", get_error_code());
 						return 0;
 					}
 
@@ -901,6 +981,7 @@ int dsh_import_statement(
 
 					if (out_reg == ~0)
 					{
+						fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
 						return 0;
 					}
 
@@ -914,6 +995,7 @@ int dsh_import_statement(
 
 						if (bc == NULL)
 						{
+							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
 							return 0;
 						}
 
@@ -935,7 +1017,7 @@ int dsh_import_statement(
 					if (cur_out == funcgen->function->out_types || sub_val_type == exp_types)
 						break;
 				}
-				
+
 				// Go to the next expression for its values
 				cur_exp = cur_exp->next;
 
@@ -943,6 +1025,7 @@ int dsh_import_statement(
 
 				if (cur_out == funcgen->function->out_types && !(sub_val_type == exp_types || cur_exp == statement->ret.values))
 				{
+					fprintf(stderr, "error dsc%i: invalid return statement, too many out values\n", get_error_code());
 					return 0;
 				}
 
@@ -950,12 +1033,19 @@ int dsh_import_statement(
 
 				if (cur_out != funcgen->function->out_types && cur_exp == statement->ret.values)
 				{
+					fprintf(stderr, "error dsc%i: invalid return statement, not enough out values\n", get_error_code());
 					return 0;
 				}
 
 			} while (cur_exp != statement->ret.values);
 
 			dsh_bc *ret_bc = dsh_funcgen_context_push_bc(1, funcgen);
+
+			if (ret_bc == NULL)
+			{
+				fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+				return 0;
+			}
 
 			ret_bc[0].opcode = dsh_opcode_ret;
 			ret_bc[0].a = last_out_register - (out_count - 1);
@@ -964,19 +1054,35 @@ int dsh_import_statement(
 
 			return 1;
 		}
+		else
+		{
+			dsh_bc *ret_bc = dsh_funcgen_context_push_bc(1, funcgen);
 
-		return 0;
+			if (ret_bc == NULL)
+			{
+				fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+				return 0;
+			}
+
+			ret_bc[0].opcode = dsh_opcode_ret;
+
+			dsh_funcgen_context_pop_temp_past(last_out_register - (out_count - 1), funcgen);
+
+			return 1;
+		}
+
 	}
 
 	}
 
+	fprintf(stderr, "error dsc%i: internal error, invalid statement in ast\n", get_error_code());
 	return 0;
 }
 
 int dsh_import_function_params(ast_func_param_list *params, dsh_funcgen_context *funcgen)
 {
 	if (params == NULL)
-		return 0;
+		return 1;
 
 	ast_func_param_list *current = params;
 
@@ -984,6 +1090,7 @@ int dsh_import_function_params(ast_func_param_list *params, dsh_funcgen_context 
 	{
 		if (dsh_funcgen_context_push_named(current->value->id, current->value->type, funcgen) == ~0)
 		{
+			fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
 			return 0;
 		}
 
@@ -1000,6 +1107,7 @@ int dsh_import_function(ast_func *func, dsh_context *context)
 	
 	if (def == NULL)
 	{
+		fprintf(stderr, "error dsc%i: internal error, cannot allocate function\n", get_error_code());
 		return 0;
 	}
 	
@@ -1008,6 +1116,7 @@ int dsh_import_function(ast_func *func, dsh_context *context)
 
 	if (param_count > 255 || out_count > 255)
 	{
+		fprintf(stderr, "error dsc%i: invalid function, too many params or outs\n", get_error_code());
 		return 0;
 	}
 
@@ -1019,6 +1128,7 @@ int dsh_import_function(ast_func *func, dsh_context *context)
 
 	if (!dsh_funcgen_context_create(16, func, context, &funcgen))
 	{
+		fprintf(stderr, "error dsc%i: internal error, cannot allocate internal memory\n", get_error_code());
 		dsh_context_pop_function(1, context);
 
 		return 0;
@@ -1030,7 +1140,7 @@ int dsh_import_function(ast_func *func, dsh_context *context)
 		dsh_context_pop_function(1, context);
 
 		dsh_funcgen_context_destroy(&funcgen);
-		
+
 		return 0;
 	}
 
@@ -1048,6 +1158,13 @@ int dsh_import_function(ast_func *func, dsh_context *context)
 
 	if (vals_used > 255)
 	{
+		fprintf(stderr, "error dsc%i: internal error, allocated too many registers\n", get_error_code());
+
+		dsh_context_pop_bytecode(funcgen.bytecode_allocated, context);
+		dsh_context_pop_function(1, context);
+
+		dsh_funcgen_context_destroy(&funcgen);
+
 		return 0;
 	}
 
@@ -1149,6 +1266,9 @@ void test_tokenize(yyscan_t scanner)
 
 int dsh_context_import_source(const char *source_file, struct dsh_context *context)
 {
+	// seed the error code generator
+	srand(time(NULL));
+
 	yyscan_t scanner;
 	if (yylex_init(&scanner) != 0)
 	{
