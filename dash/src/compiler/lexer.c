@@ -178,7 +178,7 @@ typedef size_t yy_size_t;
 
 #define EOB_ACT_CONTINUE_SCAN 0
 #define EOB_ACT_END_OF_FILE 1
-#define EOB_ACT_LAST_MATCH 2
+#define EOB_ACT_Ldst_MATCH 2
 
     /* Note: We specifically omit the test for yy_rule_can_match_eol because it requires
      *       access to the local variable yy_act. Since yyless() is a macro, it would break
@@ -498,9 +498,9 @@ static yyconst flex_int32_t yy_rule_can_match_eol[24] =
 	
 	#define YY_USER_ACTION { \
 			yylloc->first_line = yylineno; \
-	 		yylloc->last_line = yylineno; \
+	 		yylloc->ldst_line = yylineno; \
 	 		yylloc->first_column = yycolumn; \
-	 		yylloc->last_column = yycolumn + yyleng; }
+	 		yylloc->ldst_column = yycolumn + yyleng; }
 #define YY_NO_UNISTD_H 1
 #line 506 "lexer.c"
 
@@ -540,8 +540,8 @@ struct yyguts_t
     int yy_start_stack_ptr;
     int yy_start_stack_depth;
     int *yy_start_stack;
-    yy_state_type yy_last_accepting_state;
-    char* yy_last_accepting_cpos;
+    yy_state_type yy_ldst_accepting_state;
+    char* yy_ldst_accepting_cpos;
 
     int yylineno_r;
     int yy_flex_debug_r;
@@ -802,8 +802,8 @@ yy_match:
 			register YY_CHAR yy_c = yy_ec[YY_SC_TO_UI(*yy_cp)] ;
 			if ( yy_accept[yy_current_state] )
 				{
-				yyg->yy_last_accepting_state = yy_current_state;
-				yyg->yy_last_accepting_cpos = yy_cp;
+				yyg->yy_ldst_accepting_state = yy_current_state;
+				yyg->yy_ldst_accepting_cpos = yy_cp;
 				}
 			while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 				{
@@ -815,8 +815,8 @@ yy_match:
 			++yy_cp;
 			}
 		while ( yy_current_state != 54 );
-		yy_cp = yyg->yy_last_accepting_cpos;
-		yy_current_state = yyg->yy_last_accepting_state;
+		yy_cp = yyg->yy_ldst_accepting_cpos;
+		yy_current_state = yyg->yy_ldst_accepting_state;
 
 yy_find_action:
 		yy_act = yy_accept[yy_current_state];
@@ -842,8 +842,8 @@ do_action:	/* This label is used only to access EOF actions. */
 			case 0: /* must back up */
 			/* undo the effects of YY_DO_BEFORE_ACTION */
 			*yy_cp = yyg->yy_hold_char;
-			yy_cp = yyg->yy_last_accepting_cpos;
-			yy_current_state = yyg->yy_last_accepting_state;
+			yy_cp = yyg->yy_ldst_accepting_cpos;
+			yy_current_state = yyg->yy_ldst_accepting_state;
 			goto yy_find_action;
 
 case 1:
@@ -924,12 +924,12 @@ YY_RULE_SETUP
 case 16:
 YY_RULE_SETUP
 #line 38 "lexer.l"
-{ yylval->type = ast_type_real; return TOKEN_TYPE; }
+{ yylval->type = dst_type_real; return TOKEN_TYPE; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
 #line 39 "lexer.l"
-{ yylval->type = ast_type_integer; return TOKEN_TYPE; }
+{ yylval->type = dst_type_integer; return TOKEN_TYPE; }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
@@ -1029,8 +1029,8 @@ case YY_STATE_EOF(INITIAL):
 
 			else
 				{
-				yy_cp = yyg->yy_last_accepting_cpos;
-				yy_current_state = yyg->yy_last_accepting_state;
+				yy_cp = yyg->yy_ldst_accepting_cpos;
+				yy_current_state = yyg->yy_ldst_accepting_state;
 				goto yy_find_action;
 				}
 			}
@@ -1076,7 +1076,7 @@ case YY_STATE_EOF(INITIAL):
 				yy_bp = yyg->yytext_ptr + YY_MORE_ADJ;
 				goto yy_match;
 
-			case EOB_ACT_LAST_MATCH:
+			case EOB_ACT_Ldst_MATCH:
 				yyg->yy_c_buf_p =
 				&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars];
 
@@ -1100,7 +1100,7 @@ case YY_STATE_EOF(INITIAL):
 /* yy_get_next_buffer - try to read in a new buffer
  *
  * Returns a code representing an action:
- *	EOB_ACT_LAST_MATCH -
+ *	EOB_ACT_Ldst_MATCH -
  *	EOB_ACT_CONTINUE_SCAN - continue scanning from current position
  *	EOB_ACT_END_OF_FILE - end of file
  */
@@ -1131,7 +1131,7 @@ static int yy_get_next_buffer (yyscan_t yyscanner)
 			/* We matched some text prior to the EOB, first
 			 * process it.
 			 */
-			return EOB_ACT_LAST_MATCH;
+			return EOB_ACT_Ldst_MATCH;
 			}
 		}
 
@@ -1211,7 +1211,7 @@ static int yy_get_next_buffer (yyscan_t yyscanner)
 
 		else
 			{
-			ret_val = EOB_ACT_LAST_MATCH;
+			ret_val = EOB_ACT_Ldst_MATCH;
 			YY_CURRENT_BUFFER_LVALUE->yy_buffer_status =
 				YY_BUFFER_EOF_PENDING;
 			}
@@ -1252,8 +1252,8 @@ static int yy_get_next_buffer (yyscan_t yyscanner)
 		register YY_CHAR yy_c = (*yy_cp ? yy_ec[YY_SC_TO_UI(*yy_cp)] : 1);
 		if ( yy_accept[yy_current_state] )
 			{
-			yyg->yy_last_accepting_state = yy_current_state;
-			yyg->yy_last_accepting_cpos = yy_cp;
+			yyg->yy_ldst_accepting_state = yy_current_state;
+			yyg->yy_ldst_accepting_cpos = yy_cp;
 			}
 		while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 			{
@@ -1281,8 +1281,8 @@ static int yy_get_next_buffer (yyscan_t yyscanner)
 	register YY_CHAR yy_c = 1;
 	if ( yy_accept[yy_current_state] )
 		{
-		yyg->yy_last_accepting_state = yy_current_state;
-		yyg->yy_last_accepting_cpos = yy_cp;
+		yyg->yy_ldst_accepting_state = yy_current_state;
+		yyg->yy_ldst_accepting_cpos = yy_cp;
 		}
 	while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
 		{
@@ -1369,14 +1369,14 @@ static int yy_get_next_buffer (yyscan_t yyscanner)
 
 			switch ( yy_get_next_buffer( yyscanner ) )
 				{
-				case EOB_ACT_LAST_MATCH:
+				case EOB_ACT_Ldst_MATCH:
 					/* This happens because yy_g_n_b()
 					 * sees that we've accumulated a
 					 * token and flags that we need to
 					 * try matching the token before
 					 * proceeding.  But for input(),
 					 * there's no matching to consider.
-					 * So convert the EOB_ACT_LAST_MATCH
+					 * So convert the EOB_ACT_Ldst_MATCH
 					 * to EOB_ACT_END_OF_FILE.
 					 */
 

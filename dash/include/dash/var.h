@@ -11,6 +11,6 @@ typedef struct
 		float f;
 		uint32_t u;
 	};
-} dsh_var;
+} dvm_var;
 
 #endif

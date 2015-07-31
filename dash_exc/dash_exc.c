@@ -1,4 +1,4 @@
-#include "dash/context.h"
+#include "dash/vm.h"
 
 #include <stdio.h>
 
@@ -10,28 +10,28 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	struct dsh_context *context = NULL;
+	struct dvm_context *context = NULL;
 
-	if (!dsh_create_context(&context, 1, 64))
+	if (!dvm_create_context(&context, 1, 64))
 	{
 		fprintf(stderr, "error initializing dash.");
 		return 1;
 	}
 
-	if (dsh_context_import_source(argv[1], context))
+	if (dvm_import_source(argv[1], context))
 	{
-		dsh_var in[1];
-		dsh_var out[1];
+		dvm_var in[1];
+		dvm_var out[1];
 
 		in[0].i = 10000000;
 		
-		struct dsh_function_def *func = dsh_context_find_func("pi", context);
+		struct dvm_procedure *func = dvm_find_proc("pi", context);
 
-		dsh_context_dissasm_func(func, stdout, context);
+		dvm_dissasm_proc(func, stdout, context);
 
 		printf("\n");
 
-		if (dsh_context_exec_func(func, in, out, context))
+		if (dvm_exec_proc(func, in, out, context))
 		{
 			printf("pi = %f\n", out[0].f);
 		}

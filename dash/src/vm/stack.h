@@ -16,14 +16,14 @@
  *		meaning that the stack initially has nothing allocated. The stack grows from
  *		reg_bottom to reg_top, or from higher addresses to lower addresses.
  */
-struct dsh_stack
+struct dvm_stack
 {
-	dsh_var *reg_top;
-	dsh_var *reg_current;
-	dsh_var *reg_bottom;
+	dvm_var *reg_top;
+	dvm_var *reg_current;
+	dvm_var *reg_bottom;
 };
 
-void dsh_stack_dealloc(struct dsh_stack *stack)
+void dvm_stack_dealloc(struct dvm_stack *stack)
 {
 	if (stack->reg_top != NULL)
 	{
@@ -34,11 +34,11 @@ void dsh_stack_dealloc(struct dsh_stack *stack)
 		stack->reg_bottom = NULL;
 	}
 }
-int dsh_stack_alloc(struct dsh_stack *stack, size_t size)
+int dvm_stack_alloc(struct dvm_stack *stack, size_t size)
 {
-	dsh_stack_dealloc(stack);
+	dvm_stack_dealloc(stack);
 
-	stack->reg_top = (dsh_var *)malloc(size * sizeof(dsh_var));
+	stack->reg_top = (dvm_var *)malloc(size * sizeof(dvm_var));
 
 	if (stack->reg_top == NULL)
 	{
@@ -50,11 +50,11 @@ int dsh_stack_alloc(struct dsh_stack *stack, size_t size)
 
 	return 1;
 }
-int dsh_stack_push(struct dsh_stack *stack, size_t amount)
+int dvm_stack_push(struct dvm_stack *stack, size_t amount)
 {
 	return (stack->reg_current = stack->reg_current - amount) > stack->reg_top;
 }
-int dsh_stack_pop(struct dsh_stack *stack, size_t amount)
+int dvm_stack_pop(struct dvm_stack *stack, size_t amount)
 {
 	return (stack->reg_current = stack->reg_current + amount) <= stack->reg_bottom;
 }

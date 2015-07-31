@@ -1,4 +1,4 @@
-#include "../context.h"
+#include "../vm_internal.h"
 #include "../hash.h"
 
 #include "stack.h"
@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 
-int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func_parameters, dsh_var *func_results, struct dsh_context *context)
+int dvm_exec_proc(struct dvm_procedure *function, const dvm_var *func_parameters, dvm_var *func_results, struct dvm_context *context)
 {
 	if (function == NULL)
 	{
@@ -17,17 +17,17 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 	// Execution variables 
 
-	uint32_t					cur_func_index = function - context->function;
-	struct dsh_function_def    *cur_func = &context->function[cur_func_index];
-	uint32_t					cur_pc = cur_func->bytecode_start;
-	uint32_t					cur_frame_size = cur_func->reg_count_in + cur_func->reg_count_use;
+	uint32_t					 cur_func_index = function - context->function;
+	struct dvm_procedure		*cur_func = &context->function[cur_func_index];
+	uint32_t					 cur_pc = cur_func->bytecode_start;
+	uint32_t					 cur_frame_size = cur_func->reg_count_in + cur_func->reg_count_use;
 
 	// Allocate the stack for use in executing this function
 
-	struct dsh_stack stack;
+	struct dvm_stack stack;
 	memset(&stack, 0, sizeof(stack));
 
-	if (!dsh_stack_alloc(&stack, 128))
+	if (!dvm_stack_alloc(&stack, 128))
 	{
 		fprintf(stderr, "error creating a dash stack.\n");
 		return 0;
@@ -35,7 +35,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 	
 	// Push the first function's registers, and parameters over
 
-	if (!dsh_stack_push(&stack, cur_frame_size))
+	if (!dvm_stack_push(&stack, cur_frame_size))
 	{
 		fprintf(stderr, "stack overflow error.\n");
 		return 0;
@@ -44,21 +44,21 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 	memcpy(
 		stack.reg_current,
 		func_parameters,
-		sizeof(dsh_var) * cur_func->reg_count_in
+		sizeof(dvm_var) * cur_func->reg_count_in
 		);
 
 	// Bytecode execution main loop
 
 	while (1)
 	{
-		dsh_bc instruction = context->bytecode[cur_pc];
+		dvm_bc instruction = context->bytecode[cur_pc];
 		
 		switch (instruction.opcode)
 		{
-		case dsh_opcode_nop:
+		case dvm_opcode_nop:
 			break;
 
-		case dsh_opcode_call:
+		case dvm_opcode_call:
 		{
 			// Validate the operands:
 			//		instruction.a -> call_func_index
@@ -71,7 +71,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 				goto execution_error;
 			}
 
-			struct dsh_function_def *next_func = &context->function[instruction.a];
+			struct dvm_procedure *next_func = &context->function[instruction.a];
 
 			if (instruction.b >= cur_frame_size ||
 				(uint32_t)(instruction.b + next_func->reg_count_in) > (uint32_t)(cur_frame_size))
@@ -89,11 +89,11 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 			// Grab the pointer for where to get the parameters, before we push an activation record
 
-			dsh_var *reg_in_start = &stack.reg_current[instruction.b];
+			dvm_var *reg_in_start = &stack.reg_current[instruction.b];
 
 			// Push space for an activation record
 
-			if (!dsh_stack_push(&stack, 4))
+			if (!dvm_stack_push(&stack, 4))
 			{
 				fprintf(stderr, "stack overflow error.\n");
 				goto execution_error;
@@ -111,7 +111,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			cur_pc = next_func->bytecode_start;
 			cur_frame_size = next_func->reg_count_in + next_func->reg_count_use;
 
-			if (!dsh_stack_push(&stack, cur_frame_size))
+			if (!dvm_stack_push(&stack, cur_frame_size))
 			{
 				fprintf(stderr, "stack overflow error.\n");
 				goto execution_error;
@@ -122,14 +122,14 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			memcpy(
 				stack.reg_current,
 				reg_in_start,
-				sizeof(dsh_var) * cur_func->reg_count_in
+				sizeof(dvm_var) * cur_func->reg_count_in
 				);
 
 			// Skip over the pc increment and continue on
 
 			continue;
 		}
-		case dsh_opcode_ret:
+		case dvm_opcode_ret:
 		{
 			// Validate the operands (instruction.a = reg_out_start)
 
@@ -142,11 +142,11 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 			// Grab an pointer to the source for return data
 
-			dsh_var *reg_out_start = &stack.reg_current[instruction.a];
+			dvm_var *reg_out_start = &stack.reg_current[instruction.a];
 
 			// Pop this function's registers off the stack
 
-			if (!dsh_stack_pop(&stack, cur_frame_size))
+			if (!dvm_stack_pop(&stack, cur_frame_size))
 			{
 				fprintf(stderr, "stack underflow error.\n");
 				goto execution_error;
@@ -160,7 +160,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 				memcpy(
 					func_results,
 					reg_out_start,
-					sizeof(dsh_var) * cur_func->reg_count_out
+					sizeof(dvm_var) * cur_func->reg_count_out
 					);
 
 				goto execution_over;
@@ -169,12 +169,12 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			// We need to return back to our previous function,
 			// grab the activation record from the stack and pop past it
 
-			dsh_var returning_func_frame_size = stack.reg_current[0];
-			dsh_var returning_func_index = stack.reg_current[1];
-			dsh_var returning_func_result_dest = stack.reg_current[2];
-			dsh_var returning_cur_pc = stack.reg_current[3];
+			dvm_var returning_func_frame_size = stack.reg_current[0];
+			dvm_var returning_func_index = stack.reg_current[1];
+			dvm_var returning_func_result_dest = stack.reg_current[2];
+			dvm_var returning_cur_pc = stack.reg_current[3];
 
-			if (!dsh_stack_pop(&stack, 4))
+			if (!dvm_stack_pop(&stack, 4))
 			{
 				fprintf(stderr, "stack underflow error.\n");
 				goto execution_error;
@@ -186,7 +186,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			memcpy(
 				stack.reg_current + returning_func_result_dest.u,
 				reg_out_start,
-				sizeof(dsh_var) * cur_func->reg_count_out
+				sizeof(dvm_var) * cur_func->reg_count_out
 				);
 
 			cur_func_index = returning_func_index.u;
@@ -196,7 +196,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 			break;
 		}
-		case dsh_opcode_mov:
+		case dvm_opcode_mov:
 		{
 			if (instruction.a >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -208,7 +208,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 			break;
 		}
-		case dsh_opcode_stor:
+		case dvm_opcode_stor:
 		{
 			if (instruction.c >= cur_frame_size)
 			{
@@ -229,7 +229,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_cmpi_l:
+		case dvm_opcode_cmpi_l:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -241,7 +241,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 			break;
 		}
-		case dsh_opcode_cmpi_le:
+		case dvm_opcode_cmpi_le:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -254,7 +254,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_cmpf_l:
+		case dvm_opcode_cmpf_l:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -267,7 +267,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_cmpf_le:
+		case dvm_opcode_cmpf_le:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -280,7 +280,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_jmp_c:
+		case dvm_opcode_jmp_c:
 		{
 			if (instruction.a >= cur_frame_size)
 			{
@@ -307,7 +307,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 			break;
 		}
-		case dsh_opcode_jmp_cn:
+		case dvm_opcode_jmp_cn:
 		{
 			if (instruction.a >= cur_frame_size)
 			{
@@ -334,7 +334,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 			break;
 		}
-		case dsh_opcode_jmp_u:
+		case dvm_opcode_jmp_u:
 		{
 			uint8_t offset = instruction.c;
 
@@ -351,7 +351,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			continue;
 		}
 
-		case dsh_opcode_addi:
+		case dvm_opcode_addi:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -366,7 +366,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 		
-		case dsh_opcode_addf:
+		case dvm_opcode_addf:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -381,7 +381,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_subi:
+		case dvm_opcode_subi:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -396,7 +396,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 		
-		case dsh_opcode_subf:
+		case dvm_opcode_subf:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -411,7 +411,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_muli:
+		case dvm_opcode_muli:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -426,7 +426,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 		
-		case dsh_opcode_mulf:
+		case dvm_opcode_mulf:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -441,7 +441,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_divi:
+		case dvm_opcode_divi:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -456,7 +456,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 		
-		case dsh_opcode_divf:
+		case dvm_opcode_divf:
 		{
 			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -471,7 +471,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_casti:
+		case dvm_opcode_casti:
 		{
 			if (instruction.a >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -484,7 +484,7 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 			break;
 		}
 
-		case dsh_opcode_castf:
+		case dvm_opcode_castf:
 		{
 			if (instruction.a >= cur_frame_size || instruction.c >= cur_frame_size)
 			{
@@ -513,13 +513,13 @@ int dsh_context_exec_func(struct dsh_function_def *function, const dsh_var *func
 
 execution_over:
 
-	dsh_stack_dealloc(&stack);
+	dvm_stack_dealloc(&stack);
 
 	return 1;
 
 execution_error:
 
-	dsh_stack_dealloc(&stack);
+	dvm_stack_dealloc(&stack);
 
 	return 0;
 }

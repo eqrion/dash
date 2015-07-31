@@ -1,8 +1,8 @@
-#include "../context.h"
+#include "../vm_internal.h"
 
 #include <stdio.h>
 
-int dsh_context_import_module(const char *module_filename, dsh_context *context)
+int dvm_import_module(const char *module_filename, dvm_context *context)
 {
 	// Open the object binary file
 
@@ -62,7 +62,7 @@ int dsh_context_import_module(const char *module_filename, dsh_context *context)
 		fread(&extern_table[i].reg_count_in, sizeof(uint8_t), 1, module_file);
 		fread(&extern_table[i].reg_count_out, sizeof(uint8_t), 1, module_file);
 
-		extern_table[i].resolved_function_index = dsh_context_find_function_index(extern_table[i].hashed_name, context);
+		extern_table[i].resolved_function_index = dvm_find_proction_index(extern_table[i].hashed_name, context);
 
 		if (extern_table[i].resolved_function_index == ~0)
 		{
@@ -76,7 +76,7 @@ int dsh_context_import_module(const char *module_filename, dsh_context *context)
 
 	size_t func_base = context->function_count;
 
-	if (!dsh_context_push_function(module_function_count, context))
+	if (!dvm_context_push_function(module_function_count, context))
 	{
 		fclose(module_file);
 
@@ -85,7 +85,7 @@ int dsh_context_import_module(const char *module_filename, dsh_context *context)
 
 	for (uint32_t i = 0; i < module_function_count; ++i)
 	{
-		dsh_function_def *cur = &context->function[func_base + i];
+		dvm_procedure *cur = &context->function[func_base + i];
 
 		fread(&cur->hashed_name, sizeof(uint32_t), 1, module_file);
 		fread(&cur->bytecode_start, sizeof(uint32_t), 1, module_file);
@@ -115,27 +115,27 @@ int dsh_context_import_module(const char *module_filename, dsh_context *context)
 
 	size_t bc_base = context->bytecode_count;
 
-	if (!dsh_context_push_bytecode(module_bytecode_count, context))
+	if (!dvm_context_push_bytecode(module_bytecode_count, context))
 	{
-		dsh_context_pop_function(module_function_count, context);
+		dvm_context_pop_function(module_function_count, context);
 		fclose(module_file);
 
 		return 0;
 	}
 
-	fread(context->bytecode + bc_base, sizeof(dsh_bc), module_bytecode_count, module_file);
+	fread(context->bytecode + bc_base, sizeof(dvm_bc), module_bytecode_count, module_file);
 
 	// Verify and link the bytecode
 
 	for (size_t i = bc_base; i < context->bytecode_count; ++i)
 	{
-		dsh_bc *current = &context->bytecode[i];
+		dvm_bc *current = &context->bytecode[i];
 
-		if (current->opcode == dsh_opcode_stor)
+		if (current->opcode == dvm_opcode_stor)
 		{
 			++i;
 		}
-		else if (current->opcode == dsh_opcode_call)
+		else if (current->opcode == dvm_opcode_call)
 		{
 			if (current->a < module_extern_count)
 			{

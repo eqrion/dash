@@ -4,9 +4,9 @@
 	
 	#define YY_USER_ACTION { \
 			yylloc->first_line = yylineno; \
-	 		yylloc->last_line = yylineno; \
+	 		yylloc->ldst_line = yylineno; \
 	 		yylloc->first_column = yycolumn; \
-	 		yylloc->last_column = yycolumn + yyleng; }
+	 		yylloc->ldst_column = yycolumn + yyleng; }
 %}
 
 %option outfile="lexer.c"
@@ -35,8 +35,8 @@
 ">"			{ return TOKEN_OP_GREATER; }
 ">="		{ return TOKEN_OP_GREATER_EQ; }
 
-"real"		{ yylval->type = ast_type_real; return TOKEN_TYPE; }
-"integer"	{ yylval->type = ast_type_integer; return TOKEN_TYPE; }
+"real"		{ yylval->type = dst_type_real; return TOKEN_TYPE; }
+"integer"	{ yylval->type = dst_type_integer; return TOKEN_TYPE; }
 [a-zA-Z_][a-zA-Z_0-9]*	{ yylval->string = _strdup(yytext); return TOKEN_IDENTIFIER; }
 
 -?[0-9]+				{ sscanf(yytext, "%d", &yylval->integer); return TOKEN_INTEGER; }

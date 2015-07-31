@@ -74,18 +74,18 @@ union YYSTYPE
 {
 #line 17 "parser.y" /* yacc.c:1909  */
 
-	ast_type			 type;
-	ast_type_list		*type_list;
+	dst_type			 type;
+	dst_type_list		*type_list;
 	char				*identifier;
-	ast_id_list			*identifier_list;
-	ast_statement		*statement;
-	ast_statement_list	*statement_list;
-	ast_exp				*expression;
-	ast_exp_list		*expression_list;
-	ast_func_param		*function_param;
-	ast_func_param_list	*function_param_list;
-	ast_func			*function; 
-	ast_func_list		*function_list;
+	dst_id_list			*identifier_list;
+	dst_statement		*statement;
+	dst_statement_list	*statement_list;
+	dst_exp				*expression;
+	dst_exp_list		*expression_list;
+	dst_func_param		*function_param;
+	dst_func_param_list	*function_param_list;
+	dst_func			*function; 
+	dst_func_list		*function_list;
 
 	int			 integer;
 	float		 real;
@@ -106,8 +106,8 @@ struct YYLTYPE
 {
   int first_line;
   int first_column;
-  int last_line;
-  int last_column;
+  int ldst_line;
+  int ldst_column;
 };
 # define YYLTYPE_IS_DECLARED 1
 # define YYLTYPE_IS_TRIVIAL 1
@@ -115,6 +115,6 @@ struct YYLTYPE
 
 
 
-int yyparse (ast_func_list **parsed_module, void *scanner);
+int yyparse (dst_func_list **parsed_module, void *scanner);
 
 #endif /* !YY_YY_PARSER_H_INCLUDED  */
