@@ -62,7 +62,7 @@ int dvm_import_module(const char *module_filename, dvm_context *context)
 		fread(&extern_table[i].reg_count_in, sizeof(uint8_t), 1, module_file);
 		fread(&extern_table[i].reg_count_out, sizeof(uint8_t), 1, module_file);
 
-		extern_table[i].resolved_function_index = dvm_find_proction_index(extern_table[i].hashed_name, context);
+		extern_table[i].resolved_function_index = dvm_find_proc_index(extern_table[i].hashed_name, context);
 
 		if (extern_table[i].resolved_function_index == ~0)
 		{

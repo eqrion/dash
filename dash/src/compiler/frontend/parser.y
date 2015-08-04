@@ -1,14 +1,14 @@
 %{
-	#include "ast.h"
+	#include "../ast.h"
 
 	int yylex (union YYSTYPE *yyval_param, struct YYLTYPE *yylloc_param, void *yyscanner);
-	int yyerror(struct YYLTYPE *yylloc_param, dst_func_list **parsed_module, void *scanner, const char *msg);
+	int yyerror(struct YYLTYPE *yylloc_param, dst_proc_list **parsed_module, void *scanner, const char *msg);
 %}
 
 %output  "parser.c"
 %defines "parser.h"
 
-%parse-param { dst_func_list **parsed_module }
+%parse-param { dst_proc_list **parsed_module }
 %param { void *scanner }
 
 %define api.pure full
@@ -23,10 +23,10 @@
 	dst_statement_list	*statement_list;
 	dst_exp				*expression;
 	dst_exp_list		*expression_list;
-	dst_func_param		*function_param;
-	dst_func_param_list	*function_param_list;
-	dst_func			*function; 
-	dst_func_list		*function_list;
+	dst_proc_param		*proc_param;
+	dst_proc_param_list	*proc_param_list;
+	dst_proc			*proc; 
+	dst_proc_list		*proc_list;
 
 	int			 integer;
 	float		 real;
@@ -70,17 +70,17 @@
 %type <statement_list>		statement_block nonempty_statement_block
 %type <expression>			expression
 %type <expression_list>		expression_list nonempty_expression_list
-%type <function_param>		function_param
-%type <function_param_list>	nonempty_function_param_list function_param_list
-%type <function>			function
-%type <function_list>		dash_module nonempty_function_list
+%type <proc_param>			proc_param
+%type <proc_param_list>		nonempty_proc_param_list proc_param_list
+%type <proc>				proc
+%type <proc_list>			dash_module nonempty_proc_list
 
 %start dash_module
 
 %%
 
 dash_module:
-	nonempty_function_list { *parsed_module = $1; }
+	nonempty_proc_list { *parsed_module = $1; }
 
 type:
 	TOKEN_TYPE { $$ = $1; }
@@ -133,15 +133,15 @@ expression:
 	expression TOKEN_OP_GREATER expression			{ $$ = dst_create_exp_cmp_g($1, $3); } |
 	expression TOKEN_OP_GREATER_EQ expression		{ $$ = dst_create_exp_cmp_le($1, $3); } |
 	
-	identifier '(' expression_list ')' { $$ = dst_create_exp_call($1, $3); } |
-	'(' type ')' expression { $$ = dst_create_exp_cast($2, $4); } |
-	'(' expression ')' { $$ = $2; }
+	identifier '(' expression_list ')'	{ $$ = dst_create_exp_call($1, $3); } |
+	'(' type ')' expression				{ $$ = dst_create_exp_cast($2, $4); } |
+	'(' expression ')'					{ $$ = $2; }
 		
-function_param:
+proc_param:
 	identifier ':' type { $$ = dst_create_func_param($1, $3); }
 
-function:
-	TOKEN_DEF identifier ':' '(' function_param_list ')' TOKEN_ARROW '(' type_list ')' statement
+proc:
+	TOKEN_DEF identifier ':' '(' proc_param_list ')' TOKEN_ARROW '(' type_list ')' statement
 	{
 		$$ = dst_create_func($2, $5, $9, $11);
 	}
@@ -158,9 +158,9 @@ type_list:
 	%empty				{ $$ = NULL; } |
 	nonempty_type_list	{ $$ = $1; }
 	
-function_param_list:
-	%empty							{ $$ = NULL; } |
-	nonempty_function_param_list	{ $$ = $1; }
+proc_param_list:
+	%empty						{ $$ = NULL; } |
+	nonempty_proc_param_list	{ $$ = $1; }
 
 nonempty_statement_block:
 	statement ';'								{ $$ = dst_append_statement_list(NULL, $1); } |
@@ -174,29 +174,29 @@ nonempty_type_list:
 	type						{ $$ = dst_append_type_list(NULL, $1); } |
 	nonempty_type_list ',' type { $$ = dst_append_type_list($1, $3); }
 	
-nonempty_function_param_list:
-	function_param									{ $$ = dst_append_func_param_list(NULL, $1); } |
-	nonempty_function_param_list ',' function_param { $$ = dst_append_func_param_list($1, $3); }
+nonempty_proc_param_list:
+	proc_param									{ $$ = dst_append_func_param_list(NULL, $1); } |
+	nonempty_proc_param_list ',' proc_param		{ $$ = dst_append_func_param_list($1, $3); }
 
 nonempty_identifier_list:
 	identifier								{ $$ = dst_append_id_list(NULL, $1); } |
 	nonempty_identifier_list ',' identifier { $$ = dst_append_id_list($1, $3); }
 	
-nonempty_function_list:
-	function						{ $$ = dst_append_func_list(NULL, $1); } |
-	nonempty_function_list function { $$ = dst_append_func_list($1, $2); }
+nonempty_proc_list:
+	proc						{ $$ = dst_append_func_list(NULL, $1); } |
+	nonempty_proc_list proc		{ $$ = dst_append_func_list($1, $2); }
 
 %%
 
 #include <stdio.h>
 
-int yyerror(struct YYLTYPE *yylloc_param, dst_func_list **parsed_module, void *scanner, const char *msg)
+int yyerror(struct YYLTYPE *yylloc_param, dst_proc_list **parsed_module, void *scanner, const char *msg)
 {
     fprintf(stderr, "error (%d:%d) - (%d:%d): %s\n",
 		yylloc_param->first_line,
 		yylloc_param->first_column, 
-		yylloc_param->ldst_line,
-		yylloc_param->ldst_column,
+		yylloc_param->last_line,
+		yylloc_param->last_column,
 		msg);
 
 	return 0;

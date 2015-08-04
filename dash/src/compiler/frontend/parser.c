@@ -64,10 +64,10 @@
 /* Copy the first part of user declarations.  */
 #line 1 "parser.y" /* yacc.c:339  */
 
-	#include "ast.h"
+	#include "../ast.h"
 
 	int yylex (union YYSTYPE *yyval_param, struct YYLTYPE *yylloc_param, void *yyscanner);
-	int yyerror(struct YYLTYPE *yylloc_param, dst_func_list **parsed_module, void *scanner, const char *msg);
+	int yyerror(struct YYLTYPE *yylloc_param, dst_proc_list **parsed_module, void *scanner, const char *msg);
 
 #line 73 "parser.c" /* yacc.c:339  */
 
@@ -141,10 +141,10 @@ union YYSTYPE
 	dst_statement_list	*statement_list;
 	dst_exp				*expression;
 	dst_exp_list		*expression_list;
-	dst_func_param		*function_param;
-	dst_func_param_list	*function_param_list;
-	dst_func			*function; 
-	dst_func_list		*function_list;
+	dst_proc_param		*proc_param;
+	dst_proc_param_list	*proc_param_list;
+	dst_proc			*proc; 
+	dst_proc_list		*proc_list;
 
 	int			 integer;
 	float		 real;
@@ -165,8 +165,8 @@ struct YYLTYPE
 {
   int first_line;
   int first_column;
-  int ldst_line;
-  int ldst_column;
+  int last_line;
+  int last_column;
 };
 # define YYLTYPE_IS_DECLARED 1
 # define YYLTYPE_IS_TRIVIAL 1
@@ -174,7 +174,7 @@ struct YYLTYPE
 
 
 
-int yyparse (dst_func_list **parsed_module, void *scanner);
+int yyparse (dst_proc_list **parsed_module, void *scanner);
 
 #endif /* !YY_YY_PARSER_H_INCLUDED  */
 
@@ -501,11 +501,11 @@ static const char *const yytname[] =
   "TOKEN_OP_LESS", "TOKEN_OP_LESS_EQ", "TOKEN_OP_GREATER",
   "TOKEN_OP_GREATER_EQ", "'='", "','", "'('", "')'", "':'", "'{'", "'}'",
   "';'", "$accept", "dash_module", "type", "identifier", "statement",
-  "expression", "function_param", "function", "statement_block",
-  "expression_list", "type_list", "function_param_list",
-  "nonempty_statement_block", "nonempty_expression_list",
-  "nonempty_type_list", "nonempty_function_param_list",
-  "nonempty_identifier_list", "nonempty_function_list", YY_NULLPTR
+  "expression", "proc_param", "proc", "statement_block", "expression_list",
+  "type_list", "proc_param_list", "nonempty_statement_block",
+  "nonempty_expression_list", "nonempty_type_list",
+  "nonempty_proc_param_list", "nonempty_identifier_list",
+  "nonempty_proc_list", YY_NULLPTR
 };
 #endif
 
@@ -698,15 +698,15 @@ while (0)
         {                                                               \
           (Current).first_line   = YYRHSLOC (Rhs, 1).first_line;        \
           (Current).first_column = YYRHSLOC (Rhs, 1).first_column;      \
-          (Current).ldst_line    = YYRHSLOC (Rhs, N).ldst_line;         \
-          (Current).ldst_column  = YYRHSLOC (Rhs, N).ldst_column;       \
+          (Current).last_line    = YYRHSLOC (Rhs, N).last_line;         \
+          (Current).last_column  = YYRHSLOC (Rhs, N).last_column;       \
         }                                                               \
       else                                                              \
         {                                                               \
-          (Current).first_line   = (Current).ldst_line   =              \
-            YYRHSLOC (Rhs, 0).ldst_line;                                \
-          (Current).first_column = (Current).ldst_column =              \
-            YYRHSLOC (Rhs, 0).ldst_column;                              \
+          (Current).first_line   = (Current).last_line   =              \
+            YYRHSLOC (Rhs, 0).last_line;                                \
+          (Current).first_column = (Current).last_column =              \
+            YYRHSLOC (Rhs, 0).last_column;                              \
         }                                                               \
     while (0)
 #endif
@@ -743,18 +743,18 @@ static unsigned
 yy_location_print_ (FILE *yyo, YYLTYPE const * const yylocp)
 {
   unsigned res = 0;
-  int end_col = 0 != yylocp->ldst_column ? yylocp->ldst_column - 1 : 0;
+  int end_col = 0 != yylocp->last_column ? yylocp->last_column - 1 : 0;
   if (0 <= yylocp->first_line)
     {
       res += YYFPRINTF (yyo, "%d", yylocp->first_line);
       if (0 <= yylocp->first_column)
         res += YYFPRINTF (yyo, ".%d", yylocp->first_column);
     }
-  if (0 <= yylocp->ldst_line)
+  if (0 <= yylocp->last_line)
     {
-      if (yylocp->first_line < yylocp->ldst_line)
+      if (yylocp->first_line < yylocp->last_line)
         {
-          res += YYFPRINTF (yyo, "-%d", yylocp->ldst_line);
+          res += YYFPRINTF (yyo, "-%d", yylocp->last_line);
           if (0 <= end_col)
             res += YYFPRINTF (yyo, ".%d", end_col);
         }
@@ -790,7 +790,7 @@ do {                                                                      \
 `----------------------------------------*/
 
 static void
-yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, dst_func_list **parsed_module, void *scanner)
+yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, dst_proc_list **parsed_module, void *scanner)
 {
   FILE *yyo = yyoutput;
   YYUSE (yyo);
@@ -812,7 +812,7 @@ yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvalue
 `--------------------------------*/
 
 static void
-yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, dst_func_list **parsed_module, void *scanner)
+yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, dst_proc_list **parsed_module, void *scanner)
 {
   YYFPRINTF (yyoutput, "%s %s (",
              yytype < YYNTOKENS ? "token" : "nterm", yytname[yytype]);
@@ -852,7 +852,7 @@ do {                                                            \
 `------------------------------------------------*/
 
 static void
-yy_reduce_print (yytype_int16 *yyssp, YYSTYPE *yyvsp, YYLTYPE *yylsp, int yyrule, dst_func_list **parsed_module, void *scanner)
+yy_reduce_print (yytype_int16 *yyssp, YYSTYPE *yyvsp, YYLTYPE *yylsp, int yyrule, dst_proc_list **parsed_module, void *scanner)
 {
   unsigned long int yylno = yyrline[yyrule];
   int yynrhs = yyr2[yyrule];
@@ -1132,7 +1132,7 @@ yysyntax_error (YYSIZE_T *yymsg_alloc, char **yymsg,
 `-----------------------------------------------*/
 
 static void
-yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, YYLTYPE *yylocationp, dst_func_list **parsed_module, void *scanner)
+yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, YYLTYPE *yylocationp, dst_proc_list **parsed_module, void *scanner)
 {
   YYUSE (yyvaluep);
   YYUSE (yylocationp);
@@ -1155,7 +1155,7 @@ yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, YYLTYPE *yylocatio
 `----------*/
 
 int
-yyparse (dst_func_list **parsed_module, void *scanner)
+yyparse (dst_proc_list **parsed_module, void *scanner)
 {
 /* The lookahead symbol.  */
 int yychar;
@@ -1430,7 +1430,7 @@ yyreduce:
     {
         case 2:
 #line 83 "parser.y" /* yacc.c:1646  */
-    { *parsed_module = (yyvsp[0].function_list); }
+    { *parsed_module = (yyvsp[0].proc_list); }
 #line 1435 "parser.c" /* yacc.c:1646  */
     break;
 
@@ -1588,14 +1588,14 @@ yyreduce:
 
   case 26:
 #line 141 "parser.y" /* yacc.c:1646  */
-    { (yyval.function_param) = dst_create_func_param((yyvsp[-2].identifier), (yyvsp[0].type)); }
+    { (yyval.proc_param) = dst_create_func_param((yyvsp[-2].identifier), (yyvsp[0].type)); }
 #line 1593 "parser.c" /* yacc.c:1646  */
     break;
 
   case 27:
 #line 145 "parser.y" /* yacc.c:1646  */
     {
-		(yyval.function) = dst_create_func((yyvsp[-9].identifier), (yyvsp[-6].function_param_list), (yyvsp[-2].type_list), (yyvsp[0].statement));
+		(yyval.proc) = dst_create_func((yyvsp[-9].identifier), (yyvsp[-6].proc_param_list), (yyvsp[-2].type_list), (yyvsp[0].statement));
 	}
 #line 1601 "parser.c" /* yacc.c:1646  */
     break;
@@ -1638,13 +1638,13 @@ yyreduce:
 
   case 34:
 #line 162 "parser.y" /* yacc.c:1646  */
-    { (yyval.function_param_list) = NULL; }
+    { (yyval.proc_param_list) = NULL; }
 #line 1643 "parser.c" /* yacc.c:1646  */
     break;
 
   case 35:
 #line 163 "parser.y" /* yacc.c:1646  */
-    { (yyval.function_param_list) = (yyvsp[0].function_param_list); }
+    { (yyval.proc_param_list) = (yyvsp[0].proc_param_list); }
 #line 1649 "parser.c" /* yacc.c:1646  */
     break;
 
@@ -1686,13 +1686,13 @@ yyreduce:
 
   case 42:
 #line 178 "parser.y" /* yacc.c:1646  */
-    { (yyval.function_param_list) = dst_append_func_param_list(NULL, (yyvsp[0].function_param)); }
+    { (yyval.proc_param_list) = dst_append_func_param_list(NULL, (yyvsp[0].proc_param)); }
 #line 1691 "parser.c" /* yacc.c:1646  */
     break;
 
   case 43:
 #line 179 "parser.y" /* yacc.c:1646  */
-    { (yyval.function_param_list) = dst_append_func_param_list((yyvsp[-2].function_param_list), (yyvsp[0].function_param)); }
+    { (yyval.proc_param_list) = dst_append_func_param_list((yyvsp[-2].proc_param_list), (yyvsp[0].proc_param)); }
 #line 1697 "parser.c" /* yacc.c:1646  */
     break;
 
@@ -1710,13 +1710,13 @@ yyreduce:
 
   case 46:
 #line 186 "parser.y" /* yacc.c:1646  */
-    { (yyval.function_list) = dst_append_func_list(NULL, (yyvsp[0].function)); }
+    { (yyval.proc_list) = dst_append_func_list(NULL, (yyvsp[0].proc)); }
 #line 1715 "parser.c" /* yacc.c:1646  */
     break;
 
   case 47:
 #line 187 "parser.y" /* yacc.c:1646  */
-    { (yyval.function_list) = dst_append_func_list((yyvsp[-1].function_list), (yyvsp[0].function)); }
+    { (yyval.proc_list) = dst_append_func_list((yyvsp[-1].proc_list), (yyvsp[0].proc)); }
 #line 1721 "parser.c" /* yacc.c:1646  */
     break;
 
@@ -1961,13 +1961,13 @@ yyreturn:
 
 #include <stdio.h>
 
-int yyerror(struct YYLTYPE *yylloc_param, dst_func_list **parsed_module, void *scanner, const char *msg)
+int yyerror(struct YYLTYPE *yylloc_param, dst_proc_list **parsed_module, void *scanner, const char *msg)
 {
     fprintf(stderr, "error (%d:%d) - (%d:%d): %s\n",
 		yylloc_param->first_line,
 		yylloc_param->first_column, 
-		yylloc_param->ldst_line,
-		yylloc_param->ldst_column,
+		yylloc_param->last_line,
+		yylloc_param->last_column,
 		msg);
 
 	return 0;

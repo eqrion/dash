@@ -1,12 +1,12 @@
 %{
-	#include "ast.h"
+	#include "../ast.h"
 	#include "parser.h"
 	
 	#define YY_USER_ACTION { \
 			yylloc->first_line = yylineno; \
-	 		yylloc->ldst_line = yylineno; \
+	 		yylloc->last_line = yylineno; \
 	 		yylloc->first_column = yycolumn; \
-	 		yylloc->ldst_column = yycolumn + yyleng; }
+	 		yylloc->last_column = yycolumn + yyleng; }
 %}
 
 %option outfile="lexer.c"

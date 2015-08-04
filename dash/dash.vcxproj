@@ -11,26 +11,32 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\compiler\backend\codegen.h" />
+    <ClInclude Include="src\compiler\backend\common.h" />
     <ClInclude Include="src\vm_internal.h" />
     <ClInclude Include="src\hash.h" />
     <ClInclude Include="include\dash\var.h" />
     <ClInclude Include="include\dash\vm.h" />
     <ClInclude Include="src\compiler\ast.h" />
-    <ClInclude Include="src\compiler\parser.h" />
+    <ClInclude Include="src\compiler\frontend\parser.h" />
     <ClInclude Include="src\vm\stack.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\compiler\backend\common.c" />
+    <ClCompile Include="src\compiler\backend\expression.c" />
+    <ClCompile Include="src\compiler\backend\procedure.c" />
+    <ClCompile Include="src\compiler\backend\statement.c" />
     <ClCompile Include="src\compiler\ast.c" />
-    <ClCompile Include="src\compiler\codegen.c" />
-    <ClCompile Include="src\compiler\lexer.c" />
-    <ClCompile Include="src\compiler\parser.c" />
+    <ClCompile Include="src\compiler\import.c" />
+    <ClCompile Include="src\compiler\frontend\lexer.c" />
+    <ClCompile Include="src\compiler\frontend\parser.c" />
     <ClCompile Include="src\vm\exec.c" />
     <ClCompile Include="src\vm\manage.c" />
     <ClCompile Include="src\vm\module.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\compiler\lexer.l" />
-    <None Include="src\compiler\parser.y" />
+    <None Include="src\compiler\frontend\lexer.l" />
+    <None Include="src\compiler\frontend\parser.y" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{450818FC-8F6D-4D77-A4AF-6010F32B7AA8}</ProjectGuid>

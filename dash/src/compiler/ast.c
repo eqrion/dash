@@ -320,9 +320,9 @@ dst_exp *dst_create_exp_call(char *function, dst_exp_list *parameters)
 	return exp;
 }
 
-dst_func_param	*dst_create_func_param(char *id, dst_type type)
+dst_proc_param	*dst_create_func_param(char *id, dst_type type)
 {
-	dst_func_param *func_param = (dst_func_param *)malloc(sizeof(dst_func_param));
+	dst_proc_param *func_param = (dst_proc_param *)malloc(sizeof(dst_proc_param));
 
 	if (func_param == NULL)
 		return NULL;
@@ -332,9 +332,9 @@ dst_func_param	*dst_create_func_param(char *id, dst_type type)
 
 	return func_param;
 }
-dst_func *dst_create_func(char *id, dst_func_param_list *in_params, dst_type_list *out_types, dst_statement *code)
+dst_proc *dst_create_func(char *id, dst_proc_param_list *in_params, dst_type_list *out_types, dst_statement *code)
 {
-	dst_func *func = (dst_func *)malloc(sizeof(dst_func));
+	dst_proc *func = (dst_proc *)malloc(sizeof(dst_proc));
 
 	if (func == NULL)
 		return NULL;
@@ -421,7 +421,7 @@ void dst_destroy_exp(dst_exp *exp)
 
 	free(exp);
 }
-void dst_destroy_func_param(dst_func_param *func_param)
+void dst_destroy_func_param(dst_proc_param *func_param)
 {
 	if (func_param == NULL)
 		return;
@@ -429,7 +429,7 @@ void dst_destroy_func_param(dst_func_param *func_param)
 	free(func_param->id);
 	free(func_param);
 }
-void dst_destroy_func(dst_func *func)
+void dst_destroy_func(dst_proc *func)
 {
 	if (func == NULL)
 		return;
@@ -562,11 +562,11 @@ dst_exp_list		*dst_append_exp_list(dst_exp_list *list, dst_exp *value)
 
 	return list;
 }
-dst_func_param_list	*dst_append_func_param_list(dst_func_param_list *list, dst_func_param *value)
+dst_proc_param_list	*dst_append_func_param_list(dst_proc_param_list *list, dst_proc_param *value)
 {
 	if (list == NULL)
 	{
-		list = (dst_func_param_list *)malloc(sizeof(dst_func_param_list));
+		list = (dst_proc_param_list *)malloc(sizeof(dst_proc_param_list));
 
 		if (list == NULL)
 			return NULL;
@@ -577,7 +577,7 @@ dst_func_param_list	*dst_append_func_param_list(dst_func_param_list *list, dst_f
 	}
 	else
 	{
-		dst_func_param_list *next = (dst_func_param_list *)malloc(sizeof(dst_func_param_list));
+		dst_proc_param_list *next = (dst_proc_param_list *)malloc(sizeof(dst_proc_param_list));
 
 		if (next == NULL)
 			return NULL;
@@ -592,11 +592,11 @@ dst_func_param_list	*dst_append_func_param_list(dst_func_param_list *list, dst_f
 
 	return list;
 }
-dst_func_list		*dst_append_func_list(dst_func_list *list, dst_func *value)
+dst_proc_list		*dst_append_func_list(dst_proc_list *list, dst_proc *value)
 {
 	if (list == NULL)
 	{
-		list = (dst_func_list *)malloc(sizeof(dst_func_list));
+		list = (dst_proc_list *)malloc(sizeof(dst_proc_list));
 
 		if (list == NULL)
 			return NULL;
@@ -607,7 +607,7 @@ dst_func_list		*dst_append_func_list(dst_func_list *list, dst_func *value)
 	}
 	else
 	{
-		dst_func_list *next = (dst_func_list *)malloc(sizeof(dst_func_list));
+		dst_proc_list *next = (dst_proc_list *)malloc(sizeof(dst_proc_list));
 
 		if (next == NULL)
 			return NULL;
@@ -694,10 +694,10 @@ void dst_destroy_exp_list(dst_exp_list *list)
 			break;
 	}
 }
-void dst_destroy_func_param_list(dst_func_param_list *list)
+void dst_destroy_func_param_list(dst_proc_param_list *list)
 {
-	dst_func_param_list *current = list;
-	dst_func_param_list *next = NULL;
+	dst_proc_param_list *current = list;
+	dst_proc_param_list *next = NULL;
 
 	while (current != NULL)
 	{
@@ -712,10 +712,10 @@ void dst_destroy_func_param_list(dst_func_param_list *list)
 			break;
 	}
 }
-void dst_destroy_func_list(dst_func_list *list)
+void dst_destroy_func_list(dst_proc_list *list)
 {
-	dst_func_list *current = list;
-	dst_func_list *next = NULL;
+	dst_proc_list *current = list;
+	dst_proc_list *next = NULL;
 
 	while (current != NULL)
 	{
@@ -761,12 +761,12 @@ size_t dst_type_list_count(dst_type_list *list)
 	}
 	return count;
 }
-size_t dst_func_param_list_count(dst_func_param_list *list)
+size_t dst_proc_param_list_count(dst_proc_param_list *list)
 {
 	if (list == NULL)
 		return 0;
 
-	dst_func_param_list *current = list->next;
+	dst_proc_param_list *current = list->next;
 
 	size_t count = 1;
 	while (current != list)
@@ -775,6 +775,19 @@ size_t dst_func_param_list_count(dst_func_param_list *list)
 		current = current->next;
 	}
 	return count;
+}
+
+int dst_type_list_is_integer(dst_type_list *list)
+{
+	return (list->value == dst_type_integer) && (list->next == list);
+}
+int dst_type_list_is_real(dst_type_list *list)
+{
+	return (list->value == dst_type_real) && (list->next == list);
+}
+int dst_type_list_is_composite(dst_type_list *list)
+{
+	return list->next != list;
 }
 
 /* Printing */
@@ -977,7 +990,7 @@ void dst_print_exp(dst_exp *exp, int tab_level)
 		break;
 	}
 }
-void dst_print_func_param(dst_func_param *function_param, int tab_level)
+void dst_print_func_param(dst_proc_param *function_param, int tab_level)
 {
 	int tabs_left = tab_level;
 	while (tabs_left > 0)
@@ -997,7 +1010,7 @@ void dst_print_func_param(dst_func_param *function_param, int tab_level)
 		dst_print_type(function_param->type, 0);
 	}
 }
-void dst_print_func(dst_func *function)
+void dst_print_func(dst_proc *function)
 {
 	if (function == NULL)
 	{
@@ -1102,9 +1115,9 @@ void dst_print_exp_list(dst_exp_list *list, int tab_level)
 		}
 	}
 }
-void dst_print_func_param_list(dst_func_param_list *list, int tab_level)
+void dst_print_func_param_list(dst_proc_param_list *list, int tab_level)
 {
-	dst_func_param_list *current = list;
+	dst_proc_param_list *current = list;
 
 	while (current != NULL)
 	{
@@ -1122,9 +1135,9 @@ void dst_print_func_param_list(dst_func_param_list *list, int tab_level)
 		}
 	}
 }
-void dst_print_func_list(dst_func_list *list)
+void dst_print_func_list(dst_proc_list *list)
 {
-	dst_func_list *current = list;
+	dst_proc_list *current = list;
 
 	while (current != NULL)
 	{

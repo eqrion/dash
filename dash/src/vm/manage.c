@@ -302,7 +302,7 @@ int dvm_context_validate_proc(uint32_t code_start, uint32_t code_length, uint8_t
 
 // proc gen
 
-int  dvm_procgen_begin_create(dvm_procedure_generator *procgen, dvm_context *context)
+int  dvm_proc_emitter_begin_create(dvm_procedure_emitter *procgen, dvm_context *context)
 {
 	procgen->bytecode_start = context->bytecode_count;
 	procgen->bytecode_allocated = 0;
@@ -311,7 +311,7 @@ int  dvm_procgen_begin_create(dvm_procedure_generator *procgen, dvm_context *con
 	return 1;
 }
 
-dvm_bc *dvm_procgen_push_bc(size_t amount, dvm_procedure_generator *procgen)
+dvm_bc *dvm_proc_emitter_push_bc(size_t amount, dvm_procedure_emitter *procgen)
 {
 	dvm_bc *result = dvm_context_push_bytecode(amount, procgen->context);
 
@@ -323,7 +323,7 @@ dvm_bc *dvm_procgen_push_bc(size_t amount, dvm_procedure_generator *procgen)
 	return result;
 }
 
-dvm_procedure	*dvm_procgen_finalize(const char *name, uint8_t reg_count_in, uint8_t reg_count_use, uint8_t reg_count_out, dvm_procedure_generator *procgen)
+dvm_procedure	*dvm_proc_emitter_finalize(const char *name, uint8_t reg_count_in, uint8_t reg_count_use, uint8_t reg_count_out, dvm_procedure_emitter *procgen)
 {
 	if (!dvm_context_validate_proc(procgen->bytecode_start, procgen->bytecode_allocated, reg_count_in, reg_count_use, reg_count_out, procgen->context))
 	{
@@ -347,7 +347,7 @@ dvm_procedure	*dvm_procgen_finalize(const char *name, uint8_t reg_count_in, uint
 
 	return proc;
 }
-void			 dvm_procgen_cancel(dvm_procedure_generator *procgen)
+void			 dvm_proc_emitter_cancel(dvm_procedure_emitter *procgen)
 {
 	dvm_context_pop_bytecode(procgen->bytecode_allocated, procgen->context);
 }

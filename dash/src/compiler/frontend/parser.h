@@ -82,10 +82,10 @@ union YYSTYPE
 	dst_statement_list	*statement_list;
 	dst_exp				*expression;
 	dst_exp_list		*expression_list;
-	dst_func_param		*function_param;
-	dst_func_param_list	*function_param_list;
-	dst_func			*function; 
-	dst_func_list		*function_list;
+	dst_proc_param		*proc_param;
+	dst_proc_param_list	*proc_param_list;
+	dst_proc			*proc; 
+	dst_proc_list		*proc_list;
 
 	int			 integer;
 	float		 real;
@@ -106,8 +106,8 @@ struct YYLTYPE
 {
   int first_line;
   int first_column;
-  int ldst_line;
-  int ldst_column;
+  int last_line;
+  int last_column;
 };
 # define YYLTYPE_IS_DECLARED 1
 # define YYLTYPE_IS_TRIVIAL 1
@@ -115,6 +115,6 @@ struct YYLTYPE
 
 
 
-int yyparse (dst_func_list **parsed_module, void *scanner);
+int yyparse (dst_proc_list **parsed_module, void *scanner);
 
 #endif /* !YY_YY_PARSER_H_INCLUDED  */

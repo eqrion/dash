@@ -78,21 +78,21 @@ struct dvm_context
 };
 typedef struct dvm_context dvm_context;
 
-struct dvm_procedure_generator
+struct dvm_procedure_emitter
 {
 	uint32_t bytecode_start;
 	uint32_t bytecode_allocated;
 
 	dvm_context *context;
 };
-typedef struct dvm_procedure_generator dvm_procedure_generator;
+typedef struct dvm_procedure_emitter dvm_procedure_emitter;
 
-int  dvm_procgen_begin_create(dvm_procedure_generator *procgen, dvm_context *context);
+int  dvm_proc_emitter_begin_create(dvm_procedure_emitter *procgen, dvm_context *context);
 
-dvm_bc *dvm_procgen_push_bc(size_t amount, dvm_procedure_generator *procgen);
+dvm_bc *dvm_proc_emitter_push_bc(size_t amount, dvm_procedure_emitter *procgen);
 
-dvm_procedure	*dvm_procgen_finalize(const char *name, uint8_t reg_count_in, uint8_t reg_count_use, uint8_t reg_count_out, dvm_procedure_generator *procgen);
-void			 dvm_procgen_cancel(dvm_procedure_generator *procgen);
+dvm_procedure	*dvm_proc_emitter_finalize(const char *name, uint8_t reg_count_in, uint8_t reg_count_use, uint8_t reg_count_out, dvm_procedure_emitter *procgen);
+void			 dvm_proc_emitter_cancel(dvm_procedure_emitter *procgen);
 
 
 #endif
