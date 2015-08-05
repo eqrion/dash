@@ -20,20 +20,34 @@ int main(int argc, char **argv)
 
 	if (dvm_import_source(argv[1], context))
 	{
-		dvm_var in[1];
-		dvm_var out[1];
+		/*for (int n = 0; n <= 10; ++n)
+		{
+			dvm_var in[1];
+			dvm_var out[1];
 
-		in[0].i = 10000000;
-		
-		struct dvm_procedure *func = dvm_find_proc("pi", context);
+			in[0].i = n;
 
+			if (dvm_exec_proc(func, in, out, context))
+			{
+				printf("fib(%d) = %d\n", in[0].i, out[0].i);
+			}
+			else
+			{
+				fprintf(stderr, "execution error\n");
+				break;
+			}
+		}*/
+
+		struct dvm_procedure *func = dvm_find_proc("test", context);
 		dvm_dissasm_proc(func, stdout, context);
 
 		printf("\n");
 
-		if (dvm_exec_proc(func, in, out, context))
+		dvm_var out[1];
+
+		if (dvm_exec_proc(func, NULL, out, context))
 		{
-			printf("pi = %f\n", out[0].f);
+			printf("test = %d\n", out[0].i);
 		}
 		else
 		{

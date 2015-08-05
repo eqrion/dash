@@ -1,0 +1,8 @@
+def test : () -> (integer)
+{
+	{
+		let y = 0;
+	}
+	
+	return y;
+}

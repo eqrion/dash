@@ -10,7 +10,7 @@ int dcg_import_procedure_list(
 
 	while (current != NULL)
 	{
-		if (!dcg_import_procedure(current->value, vm))
+		if (!dcg_import_procedure(current->value, list, vm))
 		{
 			return 0;
 		}
@@ -51,6 +51,7 @@ int dcg_import_procedure_params(
 
 int dcg_import_procedure(
 	dst_proc *proc,
+	dst_proc_list *module,
 	dvm_context *vm
 	)
 {
@@ -80,7 +81,7 @@ int dcg_import_procedure(
 		return 0;
 	}
 
-	if (!dcg_import_statement(proc->statement, proc, &reg_alloc, &bc_emit))
+	if (!dcg_import_statement(proc->statement, proc, module, &reg_alloc, &bc_emit))
 	{
 		dcg_cancel_proc_emit(&reg_alloc, &bc_emit, vm);
 

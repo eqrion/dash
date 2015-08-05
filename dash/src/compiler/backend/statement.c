@@ -4,6 +4,7 @@
 int dcg_import_statement(
 	dst_statement *statement,
 	dst_proc *procedure,
+	dst_proc_list *module,
 	dcg_register_allocator *reg_alloc,
 	dcg_bc_emitter *bc_emit
 	)
@@ -27,7 +28,7 @@ int dcg_import_statement(
 				// n is the length of the exp_types linked list
 				// the register storing n is exp_reg_start + n
 
-				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, reg_alloc, bc_emit))
+				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
 				{
 					return 0;
 				}
@@ -39,6 +40,13 @@ int dcg_import_statement(
 				{
 					fprintf(stderr, "error dsc%i: invalid definition, cannot have an expression with values\n", get_error_code());
 					return 0;
+				}
+
+				// Reclaim the temp registers for when we formally push temp variables later
+
+				if (dcg_is_temp(exp_reg_start, reg_alloc))
+				{
+					dcg_pop_temp_past(exp_reg_start, reg_alloc);
 				}
 
 				dst_type_list	*sub_val_type = exp_types;
@@ -81,16 +89,13 @@ int dcg_import_statement(
 
 					cur_var = cur_var->next;
 
-					if (sub_val_type == exp_types)
+					if (cur_var == statement->definition.variables || sub_val_type == exp_types)
 						break;
 				}
 
-				// Go to the next expression for its values
-				cur_exp = cur_exp->next;
-
 				// Check to see if we ran out of vars before sub vals or expressions
 
-				if (cur_var == statement->definition.variables && !(sub_val_type == exp_types || cur_exp == statement->definition.values))
+				if (cur_var == statement->definition.variables && (sub_val_type != exp_types || cur_exp != statement->definition.values))
 				{
 					fprintf(stderr, "error dsc%i: invalid definition, too many values\n", get_error_code());
 					return 0;
@@ -103,6 +108,9 @@ int dcg_import_statement(
 					fprintf(stderr, "error dsc%i: invalid definition, not enough values\n", get_error_code());
 					return 0;
 				}
+
+				// Go to the next expression for its values
+				cur_exp = cur_exp->next;
 
 			} while (cur_exp != statement->definition.values);
 
@@ -129,7 +137,7 @@ int dcg_import_statement(
 				// n is the length of the exp_types linked list
 				// the register storing n is exp_reg_start + n
 
-				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, reg_alloc, bc_emit))
+				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
 				{
 					return 0;
 				}
@@ -189,23 +197,13 @@ int dcg_import_statement(
 
 					cur_var = cur_var->next;
 
-					if (sub_val_type == exp_types)
+					if (cur_var == statement->assignment.variables || sub_val_type == exp_types)
 						break;
 				}
 
-				// Clear out the temp registers we were using
-
-				if (dcg_is_temp(exp_reg_start, reg_alloc))
-				{
-					dcg_pop_temp_past(exp_reg_start, reg_alloc);
-				}
-
-				// Go to the next expression for its values
-				cur_exp = cur_exp->next;
-
 				// Check to see if we ran out of vars before sub vals or expressions
 
-				if (cur_var == statement->assignment.variables && !(sub_val_type == exp_types || cur_exp == statement->assignment.values))
+				if (cur_var == statement->assignment.variables && (sub_val_type != exp_types || cur_exp != statement->assignment.values))
 				{
 					fprintf(stderr, "error dsc%i: invalid assignment, not enough vars\n", get_error_code());
 					return 0;
@@ -219,6 +217,16 @@ int dcg_import_statement(
 					return 0;
 				}
 
+				// Clear out the temp registers we were using
+
+				if (dcg_is_temp(exp_reg_start, reg_alloc))
+				{
+					dcg_pop_temp_past(exp_reg_start, reg_alloc);
+				}
+				
+				// Go to the next expression for its values
+				cur_exp = cur_exp->next;
+				
 			} while (cur_exp != statement->assignment.values);
 
 			return 1;
@@ -227,21 +235,7 @@ int dcg_import_statement(
 		fprintf(stderr, "error dsc%i: invalid assignment, zero ids or exps\n", get_error_code());
 		return 0;
 	}
-
-	case dst_statement_type_call:
-	{
-		fprintf(stderr, "error dsc%i: calls are not implemented\n", get_error_code());
-
-		return 0;
-
-		/*size_t call_index = dvm_find_proction_index(dsh_hash(statement->call.function), reg_alloc->context);
-
-		if (call_index == ~0)
-		{
-		return 0;
-		}*/
-	}
-
+	
 	case dst_statement_type_block:
 	{
 		size_t base_register = reg_alloc->vars_named_count;
@@ -251,7 +245,7 @@ int dcg_import_statement(
 		{
 			do
 			{
-				if (!dcg_import_statement(current->value, procedure, reg_alloc, bc_emit))
+				if (!dcg_import_statement(current->value, procedure, module, reg_alloc, bc_emit))
 				{
 					return 0;
 				}
@@ -272,7 +266,7 @@ int dcg_import_statement(
 
 		// Write the if conditional first
 
-		if (!dcg_import_expression(statement->if_else.condition, &cond_register, &cond_type, reg_alloc, bc_emit))
+		if (!dcg_import_expression(statement->if_else.condition, &cond_register, &cond_type, module, reg_alloc, bc_emit))
 		{
 			return 0;
 		}
@@ -304,7 +298,7 @@ int dcg_import_statement(
 
 		// Write the false statement
 
-		if (!dcg_import_statement(statement->if_else.false_statement, procedure, reg_alloc, bc_emit))
+		if (!dcg_import_statement(statement->if_else.false_statement, procedure, module, reg_alloc, bc_emit))
 		{
 			return 0;
 		}
@@ -323,7 +317,7 @@ int dcg_import_statement(
 		// Write the true statement
 
 		size_t true_statement_start_loc = dcg_bc_written(bc_emit);
-		if (!dcg_import_statement(statement->if_else.true_statement, procedure, reg_alloc, bc_emit))
+		if (!dcg_import_statement(statement->if_else.true_statement, procedure, module, reg_alloc, bc_emit))
 		{
 			return 0;
 		}
@@ -349,7 +343,7 @@ int dcg_import_statement(
 
 		size_t cond_loc = dcg_bc_written(bc_emit);
 
-		if (!dcg_import_expression(statement->while_loop.condition, &cond_register, &cond_type, reg_alloc, bc_emit))
+		if (!dcg_import_expression(statement->while_loop.condition, &cond_register, &cond_type, module, reg_alloc, bc_emit))
 		{
 			return 0;
 		}
@@ -381,7 +375,7 @@ int dcg_import_statement(
 
 		// Write the while body
 
-		if (!dcg_import_statement(statement->while_loop.loop_statement, procedure, reg_alloc, bc_emit))
+		if (!dcg_import_statement(statement->while_loop.loop_statement, procedure, module, reg_alloc, bc_emit))
 		{
 			return 0;
 		}
@@ -419,7 +413,7 @@ int dcg_import_statement(
 			return 0;
 		}
 
-		size_t ldst_out_register = 0;
+		size_t last_out_register = 0;
 		size_t out_count = 0;
 
 		if (cur_out == NULL && cur_exp != NULL)
@@ -439,7 +433,7 @@ int dcg_import_statement(
 				// n is the length of the exp_types linked list
 				// the register storing n is exp_reg_start + n
 
-				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, reg_alloc, bc_emit))
+				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
 				{
 					return 0;
 				}
@@ -450,7 +444,7 @@ int dcg_import_statement(
 					return 0;
 				}
 
-				// Clear out the temp registers we were using, this allows us to reclaim them with new temp variables for output
+				// Reclaim the temp registers for when we formally push temp variables later
 
 				if (dcg_is_temp(exp_reg_start, reg_alloc))
 				{
@@ -479,7 +473,7 @@ int dcg_import_statement(
 						return 0;
 					}
 
-					ldst_out_register = out_reg;
+					last_out_register = out_reg;
 
 					// Store the value in the out register, if it's not already there
 
@@ -512,12 +506,9 @@ int dcg_import_statement(
 						break;
 				}
 
-				// Go to the next expression for its values
-				cur_exp = cur_exp->next;
-
 				// Check to see if we ran out of outs before sub vals or expressions
 
-				if (cur_out == procedure->out_types && !(sub_val_type == exp_types || cur_exp == statement->ret.values))
+				if (cur_out == procedure->out_types && (sub_val_type != exp_types || cur_exp != statement->ret.values))
 				{
 					fprintf(stderr, "error dsc%i: invalid return statement, too many out values\n", get_error_code());
 					return 0;
@@ -531,6 +522,10 @@ int dcg_import_statement(
 					return 0;
 				}
 
+				// Go to the next expression for its values
+				cur_exp = cur_exp->next;
+
+
 			} while (cur_exp != statement->ret.values);
 
 			dvm_bc *ret_bc = dcg_push_bc(1, bc_emit);
@@ -542,9 +537,9 @@ int dcg_import_statement(
 			}
 
 			ret_bc[0].opcode = dvm_opcode_ret;
-			ret_bc[0].a = ldst_out_register - (out_count - 1);
+			ret_bc[0].a = last_out_register - (out_count - 1);
 
-			dcg_pop_temp_past(ldst_out_register - (out_count - 1), reg_alloc);
+			dcg_pop_temp_past(last_out_register - (out_count - 1), reg_alloc);
 
 			return 1;
 		}
@@ -560,7 +555,7 @@ int dcg_import_statement(
 
 			ret_bc[0].opcode = dvm_opcode_ret;
 
-			dcg_pop_temp_past(ldst_out_register - (out_count - 1), reg_alloc);
+			dcg_pop_temp_past(last_out_register - (out_count - 1), reg_alloc);
 
 			return 1;
 		}

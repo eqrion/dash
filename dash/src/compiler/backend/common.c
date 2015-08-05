@@ -106,6 +106,8 @@ void	dcg_pop_temp_past(size_t temp_reg_index, dcg_register_allocator *reg_alloc)
 
 size_t	dcg_push_named(const char *name, dst_type type, dcg_register_allocator *reg_alloc)
 {
+	assert(reg_alloc->vars_temp_count == 0);
+
 	if (reg_alloc->vars_named_count >= 255)
 	{
 		return ~0;
@@ -133,12 +135,7 @@ size_t	dcg_push_named(const char *name, dst_type type, dcg_register_allocator *r
 
 		reg_alloc->named_vars = new_stack;
 	}
-
-	// For when we take a register from an expression that just evaluated
-
-	if (reg_alloc->vars_temp_count > 0)
-		reg_alloc->vars_temp_count--;
-
+	
 	reg_alloc->named_vars[reg_alloc->vars_named_count].hashed_name = dsh_hash(name);
 	reg_alloc->named_vars[reg_alloc->vars_named_count].reg_index = reg_alloc->vars_named_count;
 	reg_alloc->named_vars[reg_alloc->vars_named_count].type = type;
@@ -172,6 +169,11 @@ int		dcg_is_temp(size_t reg_index, dcg_register_allocator *reg_alloc)
 dvm_bc  *dcg_push_bc(size_t amount, dcg_bc_emitter *bc_emit)
 {
 	return dvm_proc_emitter_push_bc(amount, &bc_emit->vm_emitter);
+}
+
+size_t dcg_next_reg_index(dcg_register_allocator *reg_alloc)
+{
+	return reg_alloc->vars_named_count + reg_alloc->vars_temp_count;
 }
 size_t dcg_bc_written(dcg_bc_emitter *bc_emit)
 {

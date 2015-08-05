@@ -70,6 +70,7 @@ int		dcg_is_temp(size_t reg_index, dcg_register_allocator *reg_alloc);
 
 dvm_bc  *dcg_push_bc(size_t amount, dcg_bc_emitter *bc_emit);
 
+size_t dcg_next_reg_index(dcg_register_allocator *reg_alloc);
 size_t dcg_bc_written(dcg_bc_emitter *bc_emit);
 
 #endif

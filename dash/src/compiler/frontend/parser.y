@@ -89,17 +89,13 @@ identifier:
 	TOKEN_IDENTIFIER { $$ = $1; }
 	
 statement:
-	TOKEN_LET nonempty_identifier_list '=' nonempty_expression_list
+	TOKEN_LET nonempty_identifier_list '=' nonempty_expression_list ';'
 	{
 		$$ = dst_create_statement_definition($2, $4);
 	} |
-	nonempty_identifier_list '=' nonempty_expression_list
+	nonempty_identifier_list '=' nonempty_expression_list ';'
 	{
 		$$ = dst_create_statement_assignment($1, $3);
-	} |
-	identifier '(' expression_list ')'
-	{
-		$$ = dst_create_statement_call($1, $3);
 	} |
 	statement_block
 	{
@@ -113,7 +109,7 @@ statement:
 	{
 		$$ = dst_create_statement_while($3, $5);
 	} |
-	TOKEN_RETURN expression_list
+	TOKEN_RETURN expression_list ';'
 	{
 		$$ = dst_create_statement_return($2);
 	}
@@ -163,8 +159,8 @@ proc_param_list:
 	nonempty_proc_param_list	{ $$ = $1; }
 
 nonempty_statement_block:
-	statement ';'								{ $$ = dst_append_statement_list(NULL, $1); } |
-	nonempty_statement_block statement ';'		{ $$ = dst_append_statement_list($1, $2); }
+	statement								{ $$ = dst_append_statement_list(NULL, $1); } |
+	nonempty_statement_block statement		{ $$ = dst_append_statement_list($1, $2); }
 
 nonempty_expression_list:
 	expression								{ $$ = dst_append_exp_list(NULL, $1); } |

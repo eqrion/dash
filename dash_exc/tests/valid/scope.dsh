@@ -1,0 +1,10 @@
+def test : () -> (integer)
+{
+	{
+		let y = 0;
+	}
+
+	let y = 1;
+
+	return y;
+}

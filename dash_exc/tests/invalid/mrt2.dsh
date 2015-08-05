@@ -1,0 +1,9 @@
+def test : () -> (integer, integer, integer)
+{
+	return getIntegers();
+}
+
+def getIntegers : () -> (integer, integer)
+{
+	return 1, 1;
+}

@@ -10,12 +10,14 @@ int dcg_import_procedure_list(
 
 int dcg_import_procedure(
 	dst_proc *func,
+	dst_proc_list *module,
 	dvm_context *vm
 	);
 
 int dcg_import_statement(
 	dst_statement *statement,
 	dst_proc *procedure,
+	dst_proc_list *module,
 	dcg_register_allocator *reg_alloc,
 	dcg_bc_emitter *bc_emit
 	);
@@ -24,6 +26,7 @@ int dcg_import_expression(
 	dst_exp *expression,
 	size_t *out_reg,
 	dst_type_list **out_type,
+	dst_proc_list *module,
 	dcg_register_allocator *reg_alloc,
 	dcg_bc_emitter *bc_emit
 	);

@@ -13,9 +13,7 @@ enum dst_statement_type
 {
 	dst_statement_type_definition,
 	dst_statement_type_assignment,
-
-	dst_statement_type_call,
-
+	
 	dst_statement_type_block,
 	dst_statement_type_if,
 	dst_statement_type_while,
@@ -208,7 +206,6 @@ static dst_type_list dst_sentinel_type_integer = { dst_type_integer, &dst_sentin
 
 dst_statement *dst_create_statement_definition(dst_id_list *variables, dst_exp_list *assignments);
 dst_statement *dst_create_statement_assignment(dst_id_list *variables, dst_exp_list *assignments);
-dst_statement *dst_create_statement_call(char *function, dst_exp_list *parameters);
 dst_statement *dst_create_statement_block(dst_statement_list *statements);
 dst_statement *dst_create_statement_if(dst_exp *condition, dst_statement *true_statement, dst_statement *false_statement);
 dst_statement *dst_create_statement_while(dst_exp *condition, dst_statement *loop_statement);
@@ -257,6 +254,8 @@ size_t dst_proc_param_list_count(dst_proc_param_list *list);
 int dst_type_list_is_integer(dst_type_list *list);
 int dst_type_list_is_real(dst_type_list *list);
 int dst_type_list_is_composite(dst_type_list *list);
+
+void dst_proc_list_find(const char *id, dst_proc_list *list, dst_proc **out_val, size_t *out_index);
 
 /* Printing */
 

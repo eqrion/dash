@@ -1,0 +1,16 @@
+def fib : (n : integer) -> (integer)
+{
+	let x = 2;
+	let fib_x_minus2, fib_x_minus1 = 1, 1;
+
+	while (x <= n)
+	{
+		let temp = fib_x_minus1;
+		fib_x_minus1 = fib_x_minus1 + fib_x_minus2;
+		fib_x_minus2 = temp;
+
+		x = x + 1;
+	}
+
+	return fib_x_minus1;
+}

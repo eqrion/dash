@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Constructors, Destructors, Accessors */
 
@@ -28,19 +29,6 @@ dst_statement *dst_create_statement_assignment(dst_id_list *variables, dst_exp_l
 	statement->type = dst_statement_type_assignment;
 	statement->assignment.variables = variables;
 	statement->assignment.values = assignments;
-
-	return statement;
-}
-dst_statement *dst_create_statement_call(char *function, dst_exp_list *parameters)
-{
-	dst_statement *statement = (dst_statement *)malloc(sizeof(dst_statement));
-
-	if (statement == NULL)
-		return NULL;
-
-	statement->type = dst_statement_type_call;
-	statement->call.function = function;
-	statement->call.parameters = parameters;
 
 	return statement;
 }
@@ -363,12 +351,7 @@ void dst_destroy_statement(dst_statement *statement)
 		dst_destroy_exp_list(statement->assignment.values);
 		dst_destroy_id_list(statement->assignment.variables);
 		break;
-
-	case dst_statement_type_call:
-		dst_destroy_exp_list(statement->call.parameters);
-		free(statement->call.function);
-		break;
-
+		
 	case dst_statement_type_block:
 		dst_destroy_statement_list(statement->block.statements);
 		break;
@@ -790,6 +773,35 @@ int dst_type_list_is_composite(dst_type_list *list)
 	return list->next != list;
 }
 
+void dst_proc_list_find(const char *id, dst_proc_list *list, dst_proc **out_val, size_t *out_index)
+{
+	dst_proc_list *current = list;
+
+	if (current == NULL)
+	{
+		*out_val = NULL;
+		*out_index = ~0;
+		return;
+	}
+
+	size_t index = 0;
+	do
+	{
+		if (strcmp(current->value->id, id) == 0)
+		{
+			*out_val = current->value;
+			*out_index = index;
+			return;
+		}
+
+		current = current->next;
+		++index;
+	} while (current != list);
+
+	*out_val = NULL;
+	*out_index = ~0;
+}
+
 /* Printing */
 
 void dst_print_type(dst_type type, int tab_level)
@@ -856,14 +868,7 @@ void dst_print_statement(dst_statement *statement, int tab_level)
 		printf("\n\n");
 		dst_print_exp_list(statement->assignment.values, tab_level + 1);
 		break;
-
-	case dst_statement_type_call:
-		printf("call ");
-		dst_print_id(statement->call.function, 0);
-		printf("\n");
-		dst_print_exp_list(statement->call.parameters, tab_level + 1);
-		break;
-
+		
 	case dst_statement_type_block:
 		printf("block\n");
 		dst_print_statement_list(statement->block.statements, tab_level + 1);

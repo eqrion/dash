@@ -1,0 +1,11 @@
+def test : () -> (integer)
+{
+	let x = getPoint();
+
+	return (integer)x;
+}
+
+def getPoint : () -> (real, real)
+{
+	return 1., 2.;
+}

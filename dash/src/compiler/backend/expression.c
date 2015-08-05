@@ -4,6 +4,7 @@ int dcg_import_expression(
 	dst_exp *exp,
 	size_t *out_reg,
 	dst_type_list **out_type,
+	dst_proc_list *module,
 	dcg_register_allocator *reg_alloc,
 	dcg_bc_emitter *bc_emit
 	)
@@ -77,6 +78,7 @@ int dcg_import_expression(
 			exp->cast.value,
 			&source_register,
 			&source_type,
+			module,
 			reg_alloc,
 			bc_emit))
 		{
@@ -156,6 +158,7 @@ int dcg_import_expression(
 				exp->operator.left,
 				&left_exp_register,
 				&left_exp_type,
+				module,
 				reg_alloc,
 				bc_emit))
 			{
@@ -165,6 +168,7 @@ int dcg_import_expression(
 				exp->operator.right,
 				&right_exp_register,
 				&right_exp_type,
+				module,
 				reg_alloc,
 				bc_emit))
 			{
@@ -177,6 +181,7 @@ int dcg_import_expression(
 				exp->operator.right,
 				&right_exp_register,
 				&right_exp_type,
+				module,
 				reg_alloc,
 				bc_emit))
 			{
@@ -186,6 +191,7 @@ int dcg_import_expression(
 				exp->operator.left,
 				&left_exp_register,
 				&left_exp_type,
+				module,
 				reg_alloc,
 				bc_emit))
 			{
@@ -329,10 +335,159 @@ int dcg_import_expression(
 
 	case dst_exp_type_call:
 	{
-		fprintf(stderr, "error dsc%i: calls are not implemented\n", get_error_code());
-		return 0;
+		dst_proc	*next_proc;
+		size_t		 next_proc_index;
+
+		dst_proc_list_find(exp->call.function, module, &next_proc, &next_proc_index);
+
+		if (next_proc == NULL)
+		{
+			return 0;
+		}
+
+		dst_proc_param_list *cur_param = next_proc->in_params;
+		dst_exp_list *cur_param_exp = exp->call.parameters;
+
+		if (cur_param == NULL && cur_param_exp != NULL)
+		{
+			fprintf(stderr, "error dsc%i: invalid call expression, no params expected in function\n", get_error_code());
+			return 0;
+		}
+
+		if (cur_param_exp == NULL && cur_param != NULL)
+		{
+			fprintf(stderr, "error dsc%i: invalid call expression, expected a parameter\n", get_error_code());
+			return 0;
+		}
+
+		size_t start_param_reg = dcg_next_reg_index(reg_alloc);
+
+		if (cur_param_exp != NULL)
+		{
+			do
+			{
+				size_t			 exp_reg_start;
+				dst_type_list	*exp_types;
+
+				// Evaluate the expression, returning n >= 1 possible values
+				// n is the length of the exp_types linked list
+				// the register storing n is exp_reg_start + n
+
+				if (!dcg_import_expression(cur_param_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
+				{
+					return 0;
+				}
+
+				if (exp_types == NULL)
+				{
+					fprintf(stderr, "error dsc%i: invalid call expression, cannot have an expression with zero values\n", get_error_code());
+					return 0;
+				}
+
+				// Clear out the temp registers we were using, this allows us to reclaim them with new temp variables for output
+
+				if (dcg_is_temp(exp_reg_start, reg_alloc))
+				{
+					dcg_pop_temp_past(exp_reg_start, reg_alloc);
+				}
+
+				// Move the values into the output registers
+
+				dst_type_list	*sub_val_type = exp_types;
+				size_t			 sub_val_index = 0;
+
+				while (1)
+				{
+					if (sub_val_type->value != cur_param->value->type)
+					{
+						fprintf(stderr, "error dsc%i: invalid call expression, param type mismatch\n", get_error_code());
+						return 0;
+					}
+
+					size_t sub_val_reg = exp_reg_start + sub_val_index;
+					size_t out_reg = dcg_push_temp(reg_alloc);
+
+					if (out_reg == ~0)
+					{
+						fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
+						return 0;
+					}
+
+					// Store the value in the out register, if it's not already there
+
+					if (out_reg != sub_val_reg)
+					{
+						dvm_bc *bc = dcg_push_bc(1, bc_emit);
+
+						if (bc == NULL)
+						{
+							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+							return 0;
+						}
+
+						bc[0].opcode = dvm_opcode_mov;
+						bc[0].a = sub_val_reg;
+						bc[0].c = out_reg;
+					}
+
+					// Go to the next value of this expression
+
+					++sub_val_index;
+					sub_val_type = sub_val_type->next;
+
+					// Go to the next param of this call
+
+					cur_param = cur_param->next;
+
+					if (cur_param == next_proc->in_params || sub_val_type == exp_types)
+						break;
+				}
+
+				// Go to the next expression for its values
+				cur_param_exp = cur_param_exp->next;
+
+				// Check to see if we ran out of params before sub vals or expressions
+
+				if (cur_param == next_proc->in_params && !(sub_val_type == exp_types || cur_param_exp == exp->call.parameters))
+				{
+					fprintf(stderr, "error dsc%i: invalid call expression, too many parameters\n", get_error_code());
+					return 0;
+				}
+
+				// Check to see if we ran out of expression before params
+
+				if (cur_param != next_proc->in_params && cur_param_exp == exp->call.parameters)
+				{
+					fprintf(stderr, "error dsc%i: invalid return statement, not enough parameters\n", get_error_code());
+					return 0;
+				}
+
+			} while (cur_param_exp != exp->call.parameters);
+		}
+
+		dvm_bc *call = dcg_push_bc(1, bc_emit);
+
+		call->opcode = dvm_opcode_call;
+		call->a = next_proc_index;
+		call->b = start_param_reg;
+		call->c = start_param_reg;
+
+		dcg_pop_temp_past(start_param_reg, reg_alloc);
+
+		size_t out_val_count = dst_type_list_count(next_proc->out_types);
+
+		while (out_val_count > 0)
+		{
+			dcg_push_temp(reg_alloc);
+			--out_val_count;
+		}
+
+		(*out_type) = next_proc->out_types;
+		(*out_reg) = start_param_reg;
+
+		return 1;
 	}
-	break;
+
 	}
 
 	fprintf(stderr, "error dsc%i: internal error, invalid expression in ast\n", get_error_code());
