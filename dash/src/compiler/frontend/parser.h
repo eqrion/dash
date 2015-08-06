@@ -60,10 +60,14 @@ extern int yydebug;
     TOKEN_OP_SUB = 270,
     TOKEN_OP_MUL = 271,
     TOKEN_OP_DIV = 272,
-    TOKEN_OP_LESS = 273,
-    TOKEN_OP_LESS_EQ = 274,
-    TOKEN_OP_GREATER = 275,
-    TOKEN_OP_GREATER_EQ = 276
+    TOKEN_OP_AND = 273,
+    TOKEN_OP_OR = 274,
+    TOKEN_OP_NOT = 275,
+    TOKEN_OP_EQ = 276,
+    TOKEN_OP_LESS = 277,
+    TOKEN_OP_LESS_EQ = 278,
+    TOKEN_OP_GREATER = 279,
+    TOKEN_OP_GREATER_EQ = 280
   };
 #endif
 
@@ -91,7 +95,7 @@ union YYSTYPE
 	float		 real;
 	char		*string;
 
-#line 95 "parser.h" /* yacc.c:1909  */
+#line 99 "parser.h" /* yacc.c:1909  */
 };
 
 typedef union YYSTYPE YYSTYPE;
@@ -115,6 +119,6 @@ struct YYLTYPE
 
 
 
-int yyparse (dst_proc_list **parsed_module, void *scanner);
+int yyparse (dsc_parse_context *context, void *scanner);
 
 #endif /* !YY_YY_PARSER_H_INCLUDED  */

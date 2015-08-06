@@ -4,9 +4,10 @@
 int dcg_import_statement(
 	dst_statement *statement,
 	dst_proc *procedure,
-	dst_proc_list *module,
+	dcg_proc_decl_list *module,
 	dcg_register_allocator *reg_alloc,
-	dcg_bc_emitter *bc_emit
+	dcg_bc_emitter *bc_emit,
+	dsc_memory *mem
 	)
 {
 	switch (statement->type)
@@ -17,108 +18,119 @@ int dcg_import_statement(
 		dst_id_list *cur_var = statement->definition.variables;
 		dst_exp_list *cur_exp = statement->definition.values;
 
-		if (cur_var != NULL && cur_exp != NULL)
+		if (cur_var == NULL || cur_exp == NULL)
 		{
-			do
+			dsc_error("invalid definition, must have at least one variable and value.");
+			return 0;
+		}
+
+		do
+		{
+			size_t			 exp_out_reg_start;
+			dst_type_list	*exp_out_types;
+
+			// Evaluate the expression, returning n >= 1 possible values
+			// n is the length of the exp_out_types linked list
+			// the register storing n is exp_out_reg_start + n
+
+			if (!dcg_import_expression(
+				cur_exp->value,
+				&exp_out_reg_start,
+				&exp_out_types,
+				module,
+				reg_alloc,
+				bc_emit,
+				mem))
 			{
-				size_t			 exp_reg_start;
-				dst_type_list	*exp_types;
+				return 0;
+			}
 
-				// Evaluate the expression, returning n >= 1 possible values
-				// n is the length of the exp_types linked list
-				// the register storing n is exp_reg_start + n
+			// Cannot have a definition with zero values to assign
 
-				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
+			if (exp_out_types == NULL)
+			{
+				dsc_error("invalid definition, every expression must produce a value.");
+				return 0;
+			}
+
+			// Reclaim any temp registers, we'll realloc them as we need them
+
+			if (dcg_is_temp(exp_out_reg_start, reg_alloc))
+			{
+				dcg_pop_temp_past(exp_out_reg_start, reg_alloc);
+			}
+
+			// Push named registers for the variables and move the values into the registers
+
+			dst_type_list	*sub_val_type = exp_out_types;
+			size_t			 sub_val_index = 0;
+
+			while (1)
+			{
+				size_t val_reg = exp_out_reg_start + sub_val_index;
+				size_t var_reg = dcg_push_named(cur_var->value, sub_val_type->value, reg_alloc);
+
+				if (var_reg == ~0)
 				{
+					dsc_error_oor();
 					return 0;
 				}
 
-				// Move the values into the variable registers
-				// and define the variables in reg_alloc with the proper type
+				// Store the value in the variable, if it's not already there
 
-				if (exp_types == NULL)
+				if (var_reg != val_reg)
 				{
-					fprintf(stderr, "error dsc%i: invalid definition, cannot have an expression with values\n", get_error_code());
-					return 0;
-				}
+					dvm_bc *bc = dcg_push_bc(1, bc_emit);
 
-				// Reclaim the temp registers for when we formally push temp variables later
-
-				if (dcg_is_temp(exp_reg_start, reg_alloc))
-				{
-					dcg_pop_temp_past(exp_reg_start, reg_alloc);
-				}
-
-				dst_type_list	*sub_val_type = exp_types;
-				size_t			 sub_val_index = 0;
-
-				while (1)
-				{
-					size_t val_reg = exp_reg_start + sub_val_index;
-					size_t var_reg = dcg_push_named(cur_var->value, sub_val_type->value, reg_alloc);
-
-					if (var_reg == ~0)
+					if (bc == NULL)
 					{
-						fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
+						dsc_error_oom();
 						return 0;
 					}
 
-					// Store the value in the variable, if it's not already there
-
-					if (var_reg != val_reg)
-					{
-						dvm_bc *bc = dcg_push_bc(1, bc_emit);
-
-						if (bc == NULL)
-						{
-							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
-							return 0;
-						}
-
-						bc[0].opcode = dvm_opcode_mov;
-						bc[0].a = exp_reg_start + sub_val_index;
-						bc[0].c = var_reg;
-					}
-
-					// Go to the next value of this expression
-
-					++sub_val_index;
-					sub_val_type = sub_val_type->next;
-
-					// Go to the next var of this definition
-
-					cur_var = cur_var->next;
-
-					if (cur_var == statement->definition.variables || sub_val_type == exp_types)
-						break;
+					bc[0].opcode = dvm_opcode_mov;
+					bc[0].a = exp_out_reg_start + sub_val_index;
+					bc[0].c = var_reg;
 				}
 
-				// Check to see if we ran out of vars before sub vals or expressions
+				// Go to the next value of this expression
 
-				if (cur_var == statement->definition.variables && (sub_val_type != exp_types || cur_exp != statement->definition.values))
-				{
-					fprintf(stderr, "error dsc%i: invalid definition, too many values\n", get_error_code());
-					return 0;
-				}
+				++sub_val_index;
+				sub_val_type = sub_val_type->next;
 
-				// Check to see if we ran out of expressions before vars
+				// Go to the next var of this definition
 
-				if (cur_var != statement->definition.variables && cur_exp == statement->definition.values)
-				{
-					fprintf(stderr, "error dsc%i: invalid definition, not enough values\n", get_error_code());
-					return 0;
-				}
+				cur_var = cur_var->next;
 
-				// Go to the next expression for its values
-				cur_exp = cur_exp->next;
+				// If we ran out of vars or values then exit
 
-			} while (cur_exp != statement->definition.values);
+				if (cur_var == statement->definition.variables || sub_val_type == exp_out_types)
+					break;
+			}
 
-			return 1;
-		}
+			// Go to the next expression for its values
 
-		fprintf(stderr, "error dsc%i: invalid definition, zero ids or exps\n", get_error_code());
-		return 0;
+			cur_exp = cur_exp->next;
+
+			// Check to see if we ran out of vars before sub vals or expressions
+
+			if (cur_var == statement->definition.variables && (sub_val_type != exp_out_types || cur_exp != statement->definition.values))
+			{
+				dsc_error("invalid definition, more values than there are variables.");
+				return 0;
+			}
+
+			// Check to see if we ran out of expressions before vars
+
+			if (cur_var != statement->definition.variables && cur_exp == statement->definition.values)
+			{
+				dsc_error("invalid definition, less values than there are variables.");
+				return 0;
+			}
+
+		} while (cur_exp != statement->definition.values);
+
+		return 1;
 	}
 
 	case dst_statement_type_assignment:
@@ -126,116 +138,155 @@ int dcg_import_statement(
 		dst_id_list *cur_var = statement->assignment.variables;
 		dst_exp_list *cur_exp = statement->assignment.values;
 
-		if (cur_var != NULL && cur_exp != NULL)
+		if (cur_var == NULL || cur_exp == NULL)
 		{
-			do
-			{
-				size_t			 exp_reg_start;
-				dst_type_list	*exp_types;
-
-				// Evaluate the expression, returning n >= 1 possible values
-				// n is the length of the exp_types linked list
-				// the register storing n is exp_reg_start + n
-
-				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
-				{
-					return 0;
-				}
-
-				// Move the values into the variable registers
-				// and define the variables in reg_alloc with the proper type
-
-				if (exp_types == NULL)
-				{
-					fprintf(stderr, "error dsc%i: invalid assignment, cannot have an expression with zero values\n", get_error_code());
-					return 0;
-				}
-
-				dst_type_list *sub_val_type = exp_types;
-				size_t sub_val_index = 0;
-
-				while (1)
-				{
-					size_t val_reg = exp_reg_start + sub_val_index;
-					dcg_var_binding *var = dcg_map(cur_var->value, reg_alloc);
-
-					if (var == NULL)
-					{
-						fprintf(stderr, "error dsc%i: invalid assignment, invalid variable identifier (%s)\n", get_error_code(), cur_var->value);
-						return 0;
-					}
-
-					if (var->type != sub_val_type->value)
-					{
-						fprintf(stderr, "error dsc%i: invalid assignment, value mismatches variable\n", get_error_code());
-						return 0;
-					}
-
-					// Store the value in the variable, if it's not already there
-
-					if (var->reg_index != val_reg)
-					{
-						dvm_bc *bc = dcg_push_bc(1, bc_emit);
-
-						if (bc == NULL)
-						{
-							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
-							return 0;
-						}
-
-						bc[0].opcode = dvm_opcode_mov;
-						bc[0].a = exp_reg_start + sub_val_index;
-						bc[0].c = var->reg_index;
-					}
-
-					// Go to the next value of this expression
-
-					++sub_val_index;
-					sub_val_type = sub_val_type->next;
-
-					// Go to the next var of this definition
-
-					cur_var = cur_var->next;
-
-					if (cur_var == statement->assignment.variables || sub_val_type == exp_types)
-						break;
-				}
-
-				// Check to see if we ran out of vars before sub vals or expressions
-
-				if (cur_var == statement->assignment.variables && (sub_val_type != exp_types || cur_exp != statement->assignment.values))
-				{
-					fprintf(stderr, "error dsc%i: invalid assignment, not enough vars\n", get_error_code());
-					return 0;
-				}
-
-				// Check to see if we ran out of expressions before vars
-
-				if (cur_var != statement->assignment.variables && cur_exp == statement->assignment.values)
-				{
-					fprintf(stderr, "error dsc%i: invalid assignment, not enough values\n", get_error_code());
-					return 0;
-				}
-
-				// Clear out the temp registers we were using
-
-				if (dcg_is_temp(exp_reg_start, reg_alloc))
-				{
-					dcg_pop_temp_past(exp_reg_start, reg_alloc);
-				}
-				
-				// Go to the next expression for its values
-				cur_exp = cur_exp->next;
-				
-			} while (cur_exp != statement->assignment.values);
-
-			return 1;
+			dsc_error("invalid assignment, must have at least one variable and value.");
+			return 0;
 		}
 
-		fprintf(stderr, "error dsc%i: invalid assignment, zero ids or exps\n", get_error_code());
-		return 0;
+		do
+		{
+			size_t			 exp_out_reg_start;
+			dst_type_list	*exp_out_types;
+
+			// Evaluate the expression, returning n >= 1 possible values
+			// n is the length of the exp_out_types linked list
+			// the register storing n is exp_out_reg_start + n
+
+			if (!dcg_import_expression(
+				cur_exp->value,
+				&exp_out_reg_start,
+				&exp_out_types,
+				module,
+				reg_alloc,
+				bc_emit,
+				mem))
+			{
+				return 0;
+			}
+			
+			// We cannot have an assignment with zero expressions in the assignment part
+
+			if (exp_out_types == NULL)
+			{
+				dsc_error("invalid assignment, every expression must produce a value.");
+				return 0;
+			}
+
+			// Move each sub value into it's proper variable register, checking types along the way
+
+			dst_type_list *sub_val_type = exp_out_types;
+			size_t sub_val_index = 0;
+
+			while (1)
+			{
+				size_t val_reg = exp_out_reg_start + sub_val_index;
+				dcg_var_binding *var = dcg_map(cur_var->value, reg_alloc);
+
+				if (var == NULL)
+				{
+					dsc_error("invalid assignment, cannot find variable (%s).", cur_var->value);
+					return 0;
+				}
+
+				if (var->type != sub_val_type->value)
+				{
+					dsc_error("invalid assignment, trying to assign the wrong type to variable.");
+					return 0;
+				}
+
+				// Store the value in the variable, if it's not already there
+
+				if (var->reg_index != val_reg)
+				{
+					dvm_bc *bc = dcg_push_bc(1, bc_emit);
+
+					if (bc == NULL)
+					{
+						dsc_error_oom();
+						return 0;
+					}
+
+					bc[0].opcode = dvm_opcode_mov;
+					bc[0].a = exp_out_reg_start + sub_val_index;
+					bc[0].c = var->reg_index;
+				}
+
+				// Go to the next value of this expression
+
+				++sub_val_index;
+				sub_val_type = sub_val_type->next;
+
+				// Go to the next var of this definition
+
+				cur_var = cur_var->next;
+
+				if (cur_var == statement->assignment.variables || sub_val_type == exp_out_types)
+					break;
+			}
+
+			// Go to the next expression for its values
+			cur_exp = cur_exp->next;
+
+			// Check to see if we ran out of vars before sub vals or expressions
+
+			if (cur_var == statement->assignment.variables && (sub_val_type != exp_out_types || cur_exp != statement->assignment.values))
+			{
+				dsc_error("invalid assignment, more values than there are variables.");
+				return 0;
+			}
+
+			// Check to see if we ran out of expressions before vars
+
+			if (cur_var != statement->assignment.variables && cur_exp == statement->assignment.values)
+			{
+				dsc_error("invalid assignment, less values than there are variables.");
+				return 0;
+			}
+
+			// Clear out the temp registers we were using
+
+			if (dcg_is_temp(exp_out_reg_start, reg_alloc))
+			{
+				dcg_pop_temp_past(exp_out_reg_start, reg_alloc);
+			}
+			
+		} while (cur_exp != statement->assignment.values);
+
+		return 1;
 	}
 	
+	case dst_statement_type_call:
+	{
+		dst_exp call_exp;
+
+		call_exp.type = dst_exp_type_call;
+		call_exp.call.function = statement->call.function;
+		call_exp.call.parameters = statement->call.parameters;
+
+		size_t			 out_reg;
+		dst_type_list	*out_type;
+
+		if (!dcg_import_expression(
+			&call_exp,
+			&out_reg,
+			&out_type,
+			module,
+			reg_alloc,
+			bc_emit,
+			mem))
+		{
+			return 0;
+		}
+
+		if (dcg_is_temp(out_reg, reg_alloc))
+		{
+			dcg_pop_temp_past(out_reg, reg_alloc);
+		}
+
+		return 1;
+	}
+
 	case dst_statement_type_block:
 	{
 		size_t base_register = reg_alloc->vars_named_count;
@@ -245,7 +296,7 @@ int dcg_import_statement(
 		{
 			do
 			{
-				if (!dcg_import_statement(current->value, procedure, module, reg_alloc, bc_emit))
+				if (!dcg_import_statement(current->value, procedure, module, reg_alloc, bc_emit, mem))
 				{
 					return 0;
 				}
@@ -266,14 +317,14 @@ int dcg_import_statement(
 
 		// Write the if conditional first
 
-		if (!dcg_import_expression(statement->if_else.condition, &cond_register, &cond_type, module, reg_alloc, bc_emit))
+		if (!dcg_import_expression(statement->if_else.condition, &cond_register, &cond_type, module, reg_alloc, bc_emit, mem))
 		{
 			return 0;
 		}
 
 		if (!dst_type_list_is_integer(cond_type))
 		{
-			fprintf(stderr, "error dsc%i: invalid if statement, conditional must be an integer\n", get_error_code());
+			dsc_error("invalid if statement, conditional must be an integer.");
 			return 0;
 		}
 
@@ -284,52 +335,64 @@ int dcg_import_statement(
 			dcg_pop_temp_past(cond_register, reg_alloc);
 		}
 
-		// Write the jmp that will skip the false block and execute the true block
+		// Write the jmp that will skip the true block and execute the false block
 
-		size_t	jmp_to_true_loc = dcg_bc_written(bc_emit);
-		dvm_bc *jmp_to_true = dcg_push_bc(1, bc_emit);
-		if (jmp_to_true == NULL)
+		size_t	jmp_to_false_loc = dcg_bc_written(bc_emit);
+		dvm_bc *jmp_to_false = dcg_push_bc(1, bc_emit);
+		if (jmp_to_false == NULL)
 		{
-			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+			dsc_error_oom();
 			return 0;
 		}
-		jmp_to_true[0].opcode = dvm_opcode_jmp_c;
-		jmp_to_true[0].a = cond_register;
-
-		// Write the false statement
-
-		if (!dcg_import_statement(statement->if_else.false_statement, procedure, module, reg_alloc, bc_emit))
-		{
-			return 0;
-		}
-
-		// Write the jmp to skip the true statement after the false statement
-
-		size_t	jmp_to_end_loc = dcg_bc_written(bc_emit);
-		dvm_bc *jmp_to_end = dcg_push_bc(1, bc_emit);
-		if (jmp_to_end == NULL)
-		{
-			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
-			return 0;
-		}
-		jmp_to_end[0].opcode = dvm_opcode_jmp_u;
+		jmp_to_false[0].opcode = dvm_opcode_jmp_cn;
+		jmp_to_false[0].a = cond_register;
 
 		// Write the true statement
 
-		size_t true_statement_start_loc = dcg_bc_written(bc_emit);
-		if (!dcg_import_statement(statement->if_else.true_statement, procedure, module, reg_alloc, bc_emit))
+		if (!dcg_import_statement(statement->if_else.true_statement, procedure, module, reg_alloc, bc_emit, mem))
 		{
 			return 0;
 		}
-		size_t true_statement_end_loc = dcg_bc_written(bc_emit);
 
-		// Resolve jmp offsets
+		if (statement->if_else.false_statement != NULL)
+		{
+			// Write the jmp to skip the false statement after the true statement
 
-		int8_t offset1 = (int8_t)(((int)true_statement_start_loc) - ((int)jmp_to_true_loc));
-		jmp_to_true[0].c = *(uint8_t *)&offset1;
+			size_t	jmp_to_end_loc = dcg_bc_written(bc_emit);
+			dvm_bc *jmp_to_end = dcg_push_bc(1, bc_emit);
+			if (jmp_to_end == NULL)
+			{
+				dsc_error_oom();
+				return 0;
+			}
+			jmp_to_end[0].opcode = dvm_opcode_jmp_u;
 
-		int8_t offset2 = (int8_t)((int)true_statement_end_loc - (int)jmp_to_end_loc);
-		jmp_to_end[0].c = *(uint8_t *)&offset2;
+			// Write the false statement
+
+			size_t false_statement_start_loc = dcg_bc_written(bc_emit);
+			if (!dcg_import_statement(statement->if_else.false_statement, procedure, module, reg_alloc, bc_emit, mem))
+			{
+				return 0;
+			}
+			size_t false_statement_end_loc = dcg_bc_written(bc_emit);
+
+			// Resolve jmp offsets
+
+			int8_t offset1 = (int8_t)(((int)false_statement_start_loc) - ((int)jmp_to_false_loc));
+			jmp_to_false[0].c = *(uint8_t *)&offset1;
+
+			int8_t offset2 = (int8_t)((int)false_statement_end_loc - (int)jmp_to_end_loc);
+			jmp_to_end[0].c = *(uint8_t *)&offset2;
+		}
+		else
+		{
+			size_t end_loc = dcg_bc_written(bc_emit);
+
+			// Resolve jmp offsets
+
+			int8_t offset1 = (int8_t)(((int)end_loc) - ((int)jmp_to_false_loc));
+			jmp_to_false[0].c = *(uint8_t *)&offset1;
+		}
 
 		return 1;
 	}
@@ -343,14 +406,14 @@ int dcg_import_statement(
 
 		size_t cond_loc = dcg_bc_written(bc_emit);
 
-		if (!dcg_import_expression(statement->while_loop.condition, &cond_register, &cond_type, module, reg_alloc, bc_emit))
+		if (!dcg_import_expression(statement->while_loop.condition, &cond_register, &cond_type, module, reg_alloc, bc_emit, mem))
 		{
 			return 0;
 		}
 
 		if (!dst_type_list_is_integer(cond_type))
 		{
-			fprintf(stderr, "error dsc%i: invalid while statement, conditional must be an integer\n", get_error_code());
+			dsc_error("invalid while statement, conditional must be an integer.");
 			return 0;
 		}
 
@@ -367,7 +430,7 @@ int dcg_import_statement(
 		dvm_bc *jmp_break = dcg_push_bc(1, bc_emit);
 		if (jmp_break == NULL)
 		{
-			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+			dsc_error_oom();
 			return 0;
 		}
 		jmp_break[0].opcode = dvm_opcode_jmp_cn;
@@ -375,7 +438,7 @@ int dcg_import_statement(
 
 		// Write the while body
 
-		if (!dcg_import_statement(statement->while_loop.loop_statement, procedure, module, reg_alloc, bc_emit))
+		if (!dcg_import_statement(statement->while_loop.loop_statement, procedure, module, reg_alloc, bc_emit, mem))
 		{
 			return 0;
 		}
@@ -386,7 +449,7 @@ int dcg_import_statement(
 		dvm_bc *jmp_continue = dcg_push_bc(1, bc_emit);
 		if (jmp_continue == NULL)
 		{
-			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+			dsc_error_oom();
 			return 0;
 		}
 		jmp_continue[0].opcode = dvm_opcode_jmp_u;
@@ -406,21 +469,20 @@ int dcg_import_statement(
 	{
 		dst_type_list *cur_out = procedure->out_types;
 		dst_exp_list *cur_exp = statement->ret.values;
-
+				
 		if (cur_out == NULL && cur_exp != NULL)
 		{
-			fprintf(stderr, "error dsc%i: invalid return statement, no out values expected in function\n", get_error_code());
+			dsc_error("invalid return statement, more values than procedure allows.");
 			return 0;
 		}
 
-		size_t last_out_register = 0;
-		size_t out_count = 0;
-
-		if (cur_out == NULL && cur_exp != NULL)
+		if (cur_out != NULL && cur_exp == NULL)
 		{
-			fprintf(stderr, "error dsc%i: invalid return statement, expected no out values\n", get_error_code());
+			dsc_error("invalid return statement, expected values.");
 			return 0;
 		}
+
+		size_t start_out_register = dcg_next_reg_index(reg_alloc);
 
 		if (cur_exp != NULL)
 		{
@@ -433,14 +495,23 @@ int dcg_import_statement(
 				// n is the length of the exp_types linked list
 				// the register storing n is exp_reg_start + n
 
-				if (!dcg_import_expression(cur_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
+				if (!dcg_import_expression(
+					cur_exp->value,
+					&exp_reg_start,
+					&exp_types,
+					module,
+					reg_alloc,
+					bc_emit,
+					mem))
 				{
 					return 0;
 				}
 
+				// Cannot have an expression that yields no values
+
 				if (exp_types == NULL)
 				{
-					fprintf(stderr, "error dsc%i: invalid return statement, cannot have an expression with zero values\n", get_error_code());
+					dsc_error("invalid return statement, every expression must produce a value.");
 					return 0;
 				}
 
@@ -460,7 +531,7 @@ int dcg_import_statement(
 				{
 					if (sub_val_type->value != cur_out->value)
 					{
-						fprintf(stderr, "error dsc%i: invalid return statement, out type mismatch\n", get_error_code());
+						dsc_error("invalid return statement, value has different type than procedure output.");
 						return 0;
 					}
 
@@ -469,12 +540,10 @@ int dcg_import_statement(
 
 					if (out_reg == ~0)
 					{
-						fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
+						dsc_error_oor();
 						return 0;
 					}
-
-					last_out_register = out_reg;
-
+					
 					// Store the value in the out register, if it's not already there
 
 					if (out_reg != sub_val_reg)
@@ -483,7 +552,7 @@ int dcg_import_statement(
 
 						if (bc == NULL)
 						{
-							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+							dsc_error_oom();
 							return 0;
 						}
 
@@ -500,17 +569,19 @@ int dcg_import_statement(
 					// Go to the next out of this ret
 
 					cur_out = cur_out->next;
-					++out_count;
 
 					if (cur_out == procedure->out_types || sub_val_type == exp_types)
 						break;
 				}
 
+				// Go to the next expression for its values
+				cur_exp = cur_exp->next;
+
 				// Check to see if we ran out of outs before sub vals or expressions
 
 				if (cur_out == procedure->out_types && (sub_val_type != exp_types || cur_exp != statement->ret.values))
 				{
-					fprintf(stderr, "error dsc%i: invalid return statement, too many out values\n", get_error_code());
+					dsc_error("invalid return statement, more values than procedure allows.");
 					return 0;
 				}
 
@@ -518,52 +589,34 @@ int dcg_import_statement(
 
 				if (cur_out != procedure->out_types && cur_exp == statement->ret.values)
 				{
-					fprintf(stderr, "error dsc%i: invalid return statement, not enough out values\n", get_error_code());
+					dsc_error("invalid return statement, expected more output values.");
 					return 0;
 				}
-
-				// Go to the next expression for its values
-				cur_exp = cur_exp->next;
-
-
+				
 			} while (cur_exp != statement->ret.values);
 
-			dvm_bc *ret_bc = dcg_push_bc(1, bc_emit);
+			// Let go of the registers we've alloced for returning.
+			// It's just for cleaning up after ourselves.
 
-			if (ret_bc == NULL)
-			{
-				fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
-				return 0;
-			}
-
-			ret_bc[0].opcode = dvm_opcode_ret;
-			ret_bc[0].a = last_out_register - (out_count - 1);
-
-			dcg_pop_temp_past(last_out_register - (out_count - 1), reg_alloc);
-
-			return 1;
+			dcg_pop_temp_past(start_out_register, reg_alloc);
 		}
-		else
+
+		dvm_bc *ret_bc = dcg_push_bc(1, bc_emit);
+
+		if (ret_bc == NULL)
 		{
-			dvm_bc *ret_bc = dcg_push_bc(1, bc_emit);
-
-			if (ret_bc == NULL)
-			{
-				fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
-				return 0;
-			}
-
-			ret_bc[0].opcode = dvm_opcode_ret;
-
-			dcg_pop_temp_past(last_out_register - (out_count - 1), reg_alloc);
-
-			return 1;
+			dsc_error_oom();
+			return 0;
 		}
 
+		ret_bc[0].opcode = dvm_opcode_ret;
+		ret_bc[0].a = start_out_register;
+
+		return 1;
 	}
 
 	}
 
-	fprintf(stderr, "error dsc%i: internal error, invalid statement in ast\n", get_error_code());
+	dsc_error_internal();
 	return 0;
 }

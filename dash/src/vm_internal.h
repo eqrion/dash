@@ -10,35 +10,42 @@ enum dvm_opcode
 {
 	dvm_opcode_nop = 0,
 
-	dvm_opcode_call = 1,
-	dvm_opcode_ret = 2,
-	dvm_opcode_mov = 3,
-	dvm_opcode_stor = 4,
+	dvm_opcode_call,
+	dvm_opcode_ret,
+	dvm_opcode_mov,
+	dvm_opcode_stor,
 
-	dvm_opcode_cmpi_l = 5,
-	dvm_opcode_cmpf_l = 6,
+	dvm_opcode_and,
+	dvm_opcode_or,
+	dvm_opcode_not,
 
-	dvm_opcode_cmpi_le = 7,
-	dvm_opcode_cmpf_le = 8,
+	dvm_opcode_cmpi_e,
+	dvm_opcode_cmpf_e,
 
-	dvm_opcode_jmp_c = 9,
-	dvm_opcode_jmp_cn = 10,
-	dvm_opcode_jmp_u = 11,
+	dvm_opcode_cmpi_l,
+	dvm_opcode_cmpf_l,
 
-	dvm_opcode_addi = 12,
-	dvm_opcode_addf = 13,
+	dvm_opcode_cmpi_le,
+	dvm_opcode_cmpf_le,
 
-	dvm_opcode_subi = 14,
-	dvm_opcode_subf = 15,
+	dvm_opcode_jmp_c,
+	dvm_opcode_jmp_cn,
+	dvm_opcode_jmp_u,
+	
+	dvm_opcode_addi,
+	dvm_opcode_addf,
 
-	dvm_opcode_muli = 16,
-	dvm_opcode_mulf = 17,
+	dvm_opcode_subi,
+	dvm_opcode_subf,
 
-	dvm_opcode_divi = 18,
-	dvm_opcode_divf = 19,
+	dvm_opcode_muli,
+	dvm_opcode_mulf,
 
-	dvm_opcode_casti = 20,
-	dvm_opcode_castf = 21,
+	dvm_opcode_divi,
+	dvm_opcode_divf,
+
+	dvm_opcode_casti,
+	dvm_opcode_castf,
 };
 
 struct dvm_bc

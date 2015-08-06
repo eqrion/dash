@@ -1,17 +1,90 @@
 #include "common.h"
 
+dcg_proc_decl_list *dcg_append_proc_decl_list(dcg_proc_decl_list *list, dcg_proc_decl *value, dsc_memory *mem)
+{
+	if (list == NULL)
+	{
+		list = (dcg_proc_decl_list *)dsc_alloc(sizeof(dcg_proc_decl_list), mem);
+
+		if (list == NULL)
+			return NULL;
+
+		list->next = list;
+		list->prev = list;
+		list->value = value;
+	}
+	else
+	{
+		dcg_proc_decl_list *next = (dcg_proc_decl_list *)dsc_alloc(sizeof(dcg_proc_decl_list), mem);
+
+		if (next == NULL)
+			return NULL;
+
+		next->value = value;
+		next->next = list;
+		next->prev = list->prev;
+
+		list->prev->next = next;
+		list->prev = next;
+	}
+
+	return list;
+}
+
+dcg_proc_decl *dcg_create_proc_decl(const char *id, dst_proc_param_list *in_params, dst_type_list *out_types, size_t index, dsc_memory *mem)
+{
+	dcg_proc_decl *value = (dcg_proc_decl *)dsc_alloc(sizeof(dcg_proc_decl), mem);
+
+	if (value == NULL)
+	{
+		return NULL;
+	}
+
+	value->id = id;
+	value->index = index;
+	value->in_params = in_params;
+	value->out_types = out_types;
+
+	return value;
+}
+
+dcg_proc_decl *dcg_proc_decl_list_find(const char *id, dcg_proc_decl_list *list)
+{
+	dcg_proc_decl_list *current = list;
+
+	if (current == NULL)
+	{
+		return NULL;
+	}
+
+	do
+	{
+		if (strcmp(current->value->id, id) == 0)
+		{
+			return current->value;
+		}
+
+		current = current->next;
+	} while (current != list);
+
+	return NULL;
+}
+
 int	dcg_start_proc_emit(
 	size_t initial_var_capacity,
 	dcg_register_allocator *reg_alloc,
 	dcg_bc_emitter *bc_emit,
-	dvm_context *vm)
+	dvm_context *vm,
+	dsc_memory *mem)
 {
 	reg_alloc->vars_named_count = 0;
 	reg_alloc->vars_temp_count = 0;
 	reg_alloc->vars_max_allocated = 0;
 
 	reg_alloc->named_vars_capacity = initial_var_capacity == 0 ? 4 : initial_var_capacity;
-	reg_alloc->named_vars = (dcg_var_binding *)malloc(sizeof(dcg_var_binding) * reg_alloc->named_vars_capacity);
+	reg_alloc->named_vars = (dcg_var_binding *)dsc_alloc(sizeof(dcg_var_binding) * reg_alloc->named_vars_capacity, mem);
+
+	reg_alloc->mem = mem;
 
 	if (reg_alloc->named_vars == NULL)
 	{
@@ -40,13 +113,7 @@ int dcg_finalize_proc_emit(
 		(uint8_t)(reg_alloc->vars_max_allocated - in_count),
 		(uint8_t)out_count,
 		&bc_emit->vm_emitter);
-
-	if (reg_alloc->named_vars != NULL)
-	{
-		free(reg_alloc->named_vars);
-		reg_alloc->named_vars = NULL;
-	}
-
+	
 	return result != NULL;
 }
 void dcg_cancel_proc_emit(
@@ -54,12 +121,7 @@ void dcg_cancel_proc_emit(
 	dcg_bc_emitter *bc_emit,
 	dvm_context *vm)
 {
-	if (reg_alloc->named_vars != NULL)
-	{
-		free(reg_alloc->named_vars);
-		reg_alloc->named_vars = NULL;
-	}
-
+	dvm_proc_emitter_cancel(&bc_emit->vm_emitter);
 }
 
 dcg_var_binding *dcg_map(const char *name, dcg_register_allocator *reg_alloc)
@@ -122,7 +184,7 @@ size_t	dcg_push_named(const char *name, dst_type type, dcg_register_allocator *r
 	{
 		reg_alloc->named_vars_capacity *= 2;
 
-		dcg_var_binding *new_stack = (dcg_var_binding *)malloc(sizeof(dcg_var_binding) * reg_alloc->named_vars_capacity);
+		dcg_var_binding *new_stack = (dcg_var_binding *)dsc_alloc(sizeof(dcg_var_binding) * reg_alloc->named_vars_capacity, reg_alloc->mem);
 
 		if (new_stack == NULL)
 		{
@@ -130,8 +192,6 @@ size_t	dcg_push_named(const char *name, dst_type type, dcg_register_allocator *r
 		}
 
 		memcpy(new_stack, reg_alloc->named_vars, sizeof(dcg_var_binding) * reg_alloc->vars_named_count);
-
-		free(reg_alloc->named_vars);
 
 		reg_alloc->named_vars = new_stack;
 	}

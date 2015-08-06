@@ -1,0 +1,15 @@
+def main : () -> (integer)
+{
+	let tau = 6.283185307179586476925286766559;
+	let delta = 0.09817477042468103870195760572748;
+	let n = 0.;
+
+	while (n <= tau)
+	{
+		print_r(sin(n));
+
+		n = n + delta;
+	}
+
+	return 0;
+}

@@ -5,30 +5,35 @@
 
 int dcg_import_procedure_list(
 	dst_proc_list *list,
-	dvm_context *vm
+	dcg_proc_decl_list *module,
+	dvm_context *vm,
+	dsc_memory *mem
 	);
 
 int dcg_import_procedure(
 	dst_proc *func,
-	dst_proc_list *module,
-	dvm_context *vm
+	dcg_proc_decl_list *module,
+	dvm_context *vm,
+	dsc_memory *mem
 	);
 
 int dcg_import_statement(
 	dst_statement *statement,
 	dst_proc *procedure,
-	dst_proc_list *module,
+	dcg_proc_decl_list *module,
 	dcg_register_allocator *reg_alloc,
-	dcg_bc_emitter *bc_emit
+	dcg_bc_emitter *bc_emit,
+	dsc_memory *mem
 	);
 
 int dcg_import_expression(
 	dst_exp *expression,
 	size_t *out_reg,
 	dst_type_list **out_type,
-	dst_proc_list *module,
+	dcg_proc_decl_list *module,
 	dcg_register_allocator *reg_alloc,
-	dcg_bc_emitter *bc_emit
+	dcg_bc_emitter *bc_emit,
+	dsc_memory *mem
 	);
 
 #endif

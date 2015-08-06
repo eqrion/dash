@@ -4,9 +4,10 @@ int dcg_import_expression(
 	dst_exp *exp,
 	size_t *out_reg,
 	dst_type_list **out_type,
-	dst_proc_list *module,
+	dcg_proc_decl_list *module,
 	dcg_register_allocator *reg_alloc,
-	dcg_bc_emitter *bc_emit
+	dcg_bc_emitter *bc_emit,
+	dsc_memory *mem
 	)
 {
 	switch (exp->type)
@@ -17,7 +18,7 @@ int dcg_import_expression(
 
 		if (binding == NULL)
 		{
-			fprintf(stderr, "error dsc%i: invalid variable identifier (%s)\n", get_error_code(), exp->variable.id);
+			dsc_error("couldn't find variable (%s)\n", exp->variable.id);
 			return 0;
 		}
 
@@ -35,7 +36,7 @@ int dcg_import_expression(
 
 		if (result_reg == ~0)
 		{
-			fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
+			dsc_error_oor();
 			return 0;
 		}
 
@@ -43,7 +44,7 @@ int dcg_import_expression(
 
 		if (bc == NULL)
 		{
-			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+			dsc_error_oom();
 			return 0;
 		}
 
@@ -80,7 +81,8 @@ int dcg_import_expression(
 			&source_type,
 			module,
 			reg_alloc,
-			bc_emit))
+			bc_emit,
+			mem))
 		{
 			return 0;
 		}
@@ -89,7 +91,7 @@ int dcg_import_expression(
 			dst_type_list_is_integer(source_type) && exp->cast.dest_type == dst_type_integer ||
 			dst_type_list_is_real(source_type) && exp->cast.dest_type == dst_type_real)
 		{
-			fprintf(stderr, "error dsc%i: invalid cast expression\n", get_error_code());
+			dsc_error("invalid cast expression, value must be an integer or a real, and be casted to a different type.");
 			return 0;
 		}
 
@@ -99,7 +101,7 @@ int dcg_import_expression(
 
 			if (result_register == ~0)
 			{
-				fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+				dsc_error_oor();
 				return 0;
 			}
 		}
@@ -112,7 +114,7 @@ int dcg_import_expression(
 
 		if (bc == NULL)
 		{
-			fprintf(stderr, "error dsc%i: internal error, cannot bytecode \n", get_error_code());
+			dsc_error_oom();
 			return 0;
 		}
 
@@ -136,10 +138,87 @@ int dcg_import_expression(
 	}
 	break;
 
+	case dst_exp_type_not:
+	{
+		size_t			 source_register;
+		dst_type_list	*source_type;
+
+		size_t	result_register;
+
+		if (!dcg_import_expression(
+			exp->unary.value,
+			&source_register,
+			&source_type,
+			module,
+			reg_alloc,
+			bc_emit,
+			mem))
+		{
+			return 0;
+		}
+
+		if (dst_type_list_is_composite(source_type))
+		{
+			dsc_error("invalid not expression, value must be an integer.");
+			return 0;
+		}
+
+		if (dcg_is_named(source_register, reg_alloc))
+		{
+			result_register = dcg_push_temp(reg_alloc);
+
+			if (result_register == ~0)
+			{
+				dsc_error_oor();
+				return 0;
+			}
+		}
+		else
+		{
+			result_register = source_register;
+		}
+
+		dvm_bc *bc = dcg_push_bc(1, bc_emit);
+
+		if (bc == NULL)
+		{
+			dsc_error_oom();
+			return 0;
+		}
+
+		switch (exp->type)
+		{
+			case dst_exp_type_not:
+			{
+				if (source_type->value == dst_type_real)
+				{
+					dsc_error("invalid not expression, value must be an integer.");
+					return 0;
+				}
+
+				bc[0].opcode = dvm_opcode_not;
+
+				(*out_type) = &dst_sentinel_type_integer;
+			}
+			break;
+		}
+
+		bc[0].a = source_register;
+		bc[0].c = result_register;
+
+		(*out_reg) = result_register;
+
+		return 1;
+	}
+	break;
+
 	case dst_exp_type_addition:
 	case dst_exp_type_subtraction:
 	case dst_exp_type_multiplication:
 	case dst_exp_type_division:
+	case dst_exp_type_and:
+	case dst_exp_type_or:
+	case dst_exp_type_eq:
 	case dst_exp_type_less:
 	case dst_exp_type_less_eq:
 	case dst_exp_type_greater:
@@ -152,25 +231,27 @@ int dcg_import_expression(
 
 		size_t result_register;
 
-		if (exp->operator.left->temp_count_est >= exp->operator.right->temp_count_est)
+		if (exp->binary.left->temp_count_est >= exp->binary.right->temp_count_est)
 		{
 			if (!dcg_import_expression(
-				exp->operator.left,
+				exp->binary.left,
 				&left_exp_register,
 				&left_exp_type,
 				module,
 				reg_alloc,
-				bc_emit))
+				bc_emit,
+				mem))
 			{
 				return 0;
 			}
 			if (!dcg_import_expression(
-				exp->operator.right,
+				exp->binary.right,
 				&right_exp_register,
 				&right_exp_type,
 				module,
 				reg_alloc,
-				bc_emit))
+				bc_emit,
+				mem))
 			{
 				return 0;
 			}
@@ -178,22 +259,24 @@ int dcg_import_expression(
 		else
 		{
 			if (!dcg_import_expression(
-				exp->operator.right,
+				exp->binary.right,
 				&right_exp_register,
 				&right_exp_type,
 				module,
 				reg_alloc,
-				bc_emit))
+				bc_emit,
+				mem))
 			{
 				return 0;
 			}
 			if (!dcg_import_expression(
-				exp->operator.left,
+				exp->binary.left,
 				&left_exp_register,
 				&left_exp_type,
 				module,
 				reg_alloc,
-				bc_emit))
+				bc_emit,
+				mem))
 			{
 				return 0;
 			}
@@ -201,13 +284,13 @@ int dcg_import_expression(
 
 		if (dst_type_list_is_composite(left_exp_type) || dst_type_list_is_composite(right_exp_type))
 		{
-			fprintf(stderr, "error dsc%i: invalid operands to binary expression, cannot be composite types\n", get_error_code());
+			dsc_error("invalid operands to binary expression, cannot be composite types");
 			return 0;
 		}
 
 		if (left_exp_type->value != right_exp_type->value)
 		{
-			fprintf(stderr, "error dsc%i: invalid operands to binary expression, mismatch integer, real\n", get_error_code());
+			dsc_error("invalid operands to binary expression, mismatch integer, real");
 			return 0;
 		}
 
@@ -220,7 +303,7 @@ int dcg_import_expression(
 
 			if (result_register == ~0)
 			{
-				fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
+				dsc_error_oor();
 				return 0;
 			}
 		}
@@ -238,7 +321,7 @@ int dcg_import_expression(
 		{
 			// Use the lowest temporary register we can. This is will be the one for the expression executed first.
 
-			if (exp->operator.left->temp_count_est >= exp->operator.right->temp_count_est)
+			if (exp->binary.left->temp_count_est >= exp->binary.right->temp_count_est)
 			{
 				result_register = left_exp_register;
 				dcg_pop_temp_to(left_exp_register, reg_alloc);
@@ -254,7 +337,7 @@ int dcg_import_expression(
 
 		if (bc == NULL)
 		{
-			fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+			dsc_error_oom();
 			return 0;
 		}
 
@@ -293,6 +376,44 @@ int dcg_import_expression(
 			(*out_type) = left_exp_type;
 			break;
 
+		case dst_exp_type_and:
+			if (left_exp_type->value == dst_type_real || right_exp_type->value == dst_type_real)
+			{
+				dsc_error("invalid operands to and expression, must be of type integer");
+				return 0;
+			}
+
+			bc[0].opcode = dvm_opcode_and;
+			bc[0].a = left_exp_register;
+			bc[0].b = right_exp_register;
+			bc[0].c = result_register;
+
+			(*out_type) = &dst_sentinel_type_integer;
+			break;
+			
+		case dst_exp_type_or:
+			if (left_exp_type->value == dst_type_real || right_exp_type->value == dst_type_real)
+			{
+				dsc_error("invalid operands to or expression, must be of type integer");
+				return 0;
+			}
+
+			bc[0].opcode = dvm_opcode_or;
+			bc[0].a = left_exp_register;
+			bc[0].b = right_exp_register;
+			bc[0].c = result_register;
+
+			(*out_type) = &dst_sentinel_type_integer;
+			break;
+
+		case dst_exp_type_eq:
+			bc[0].opcode = left_exp_type->value == dst_type_integer ? dvm_opcode_cmpi_e : dvm_opcode_cmpf_e;
+			bc[0].a = left_exp_register;
+			bc[0].b = right_exp_register;
+			bc[0].c = result_register;
+
+			(*out_type) = &dst_sentinel_type_integer;
+			break;
 		case dst_exp_type_less:
 			bc[0].opcode = left_exp_type->value == dst_type_integer ? dvm_opcode_cmpi_l : dvm_opcode_cmpf_l;
 			bc[0].a = left_exp_register;
@@ -335,10 +456,7 @@ int dcg_import_expression(
 
 	case dst_exp_type_call:
 	{
-		dst_proc	*next_proc;
-		size_t		 next_proc_index;
-
-		dst_proc_list_find(exp->call.function, module, &next_proc, &next_proc_index);
+		dcg_proc_decl *next_proc = dcg_proc_decl_list_find(exp->call.function, module);
 
 		if (next_proc == NULL)
 		{
@@ -350,13 +468,13 @@ int dcg_import_expression(
 
 		if (cur_param == NULL && cur_param_exp != NULL)
 		{
-			fprintf(stderr, "error dsc%i: invalid call expression, no params expected in function\n", get_error_code());
+			dsc_error("invalid call expression, no parameters expected in procedure.");
 			return 0;
 		}
 
 		if (cur_param_exp == NULL && cur_param != NULL)
 		{
-			fprintf(stderr, "error dsc%i: invalid call expression, expected a parameter\n", get_error_code());
+			dsc_error("invalid call expression, expected a parameter.");
 			return 0;
 		}
 
@@ -373,14 +491,14 @@ int dcg_import_expression(
 				// n is the length of the exp_types linked list
 				// the register storing n is exp_reg_start + n
 
-				if (!dcg_import_expression(cur_param_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit))
+				if (!dcg_import_expression(cur_param_exp->value, &exp_reg_start, &exp_types, module, reg_alloc, bc_emit, mem))
 				{
 					return 0;
 				}
 
 				if (exp_types == NULL)
 				{
-					fprintf(stderr, "error dsc%i: invalid call expression, cannot have an expression with zero values\n", get_error_code());
+					dsc_error("invalid call expression, every expression must produce at least one value.");
 					return 0;
 				}
 
@@ -400,7 +518,7 @@ int dcg_import_expression(
 				{
 					if (sub_val_type->value != cur_param->value->type)
 					{
-						fprintf(stderr, "error dsc%i: invalid call expression, param type mismatch\n", get_error_code());
+						dsc_error("invalid call expression, parameter has wrong type.");
 						return 0;
 					}
 
@@ -409,7 +527,7 @@ int dcg_import_expression(
 
 					if (out_reg == ~0)
 					{
-						fprintf(stderr, "error dsc%i: internal error, cannot allocate register\n", get_error_code());
+						dsc_error_oor();
 						return 0;
 					}
 
@@ -421,7 +539,7 @@ int dcg_import_expression(
 
 						if (bc == NULL)
 						{
-							fprintf(stderr, "error dsc%i: internal error, cannot allocate bytecode\n", get_error_code());
+							dsc_error_oom();
 							return 0;
 						}
 
@@ -448,9 +566,9 @@ int dcg_import_expression(
 
 				// Check to see if we ran out of params before sub vals or expressions
 
-				if (cur_param == next_proc->in_params && !(sub_val_type == exp_types || cur_param_exp == exp->call.parameters))
+				if (cur_param == next_proc->in_params && (sub_val_type != exp_types || cur_param_exp != exp->call.parameters))
 				{
-					fprintf(stderr, "error dsc%i: invalid call expression, too many parameters\n", get_error_code());
+					dsc_error("invalid call expression, too many parameters.");
 					return 0;
 				}
 
@@ -458,7 +576,7 @@ int dcg_import_expression(
 
 				if (cur_param != next_proc->in_params && cur_param_exp == exp->call.parameters)
 				{
-					fprintf(stderr, "error dsc%i: invalid return statement, not enough parameters\n", get_error_code());
+					dsc_error("invalid call expression, not enough parameters.");
 					return 0;
 				}
 
@@ -467,8 +585,14 @@ int dcg_import_expression(
 
 		dvm_bc *call = dcg_push_bc(1, bc_emit);
 
+		if (call == NULL)
+		{
+			dsc_error_oom();
+			return 0;
+		}
+
 		call->opcode = dvm_opcode_call;
-		call->a = next_proc_index;
+		call->a = next_proc->index;
 		call->b = start_param_reg;
 		call->c = start_param_reg;
 
@@ -490,6 +614,6 @@ int dcg_import_expression(
 
 	}
 
-	fprintf(stderr, "error dsc%i: internal error, invalid expression in ast\n", get_error_code());
+	dsc_error_internal();
 	return 0;
 }

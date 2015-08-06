@@ -1,12 +1,14 @@
 %{
-	#include "../ast.h"
+	#include "../common.h"
 	#include "parser.h"
-	
+
 	#define YY_USER_ACTION { \
 			yylloc->first_line = yylineno; \
 	 		yylloc->last_line = yylineno; \
 	 		yylloc->first_column = yycolumn; \
 	 		yylloc->last_column = yycolumn + yyleng; }
+
+	#define YY_EXTRA_DATA dsc_memory*
 %}
 
 %option outfile="lexer.c"
@@ -30,6 +32,11 @@
 "*"			{ return TOKEN_OP_MUL; }
 "/"			{ return TOKEN_OP_DIV; }
 
+"and"		{ return TOKEN_OP_AND; }
+"or"		{ return TOKEN_OP_OR; }
+"not"		{ return TOKEN_OP_NOT; }
+
+"=="		{ return TOKEN_OP_EQ; }
 "<"			{ return TOKEN_OP_LESS; }
 "<="		{ return TOKEN_OP_LESS_EQ; }
 ">"			{ return TOKEN_OP_GREATER; }
@@ -37,7 +44,7 @@
 
 "real"		{ yylval->type = dst_type_real; return TOKEN_TYPE; }
 "integer"	{ yylval->type = dst_type_integer; return TOKEN_TYPE; }
-[a-zA-Z_][a-zA-Z_0-9]*	{ yylval->string = _strdup(yytext); return TOKEN_IDENTIFIER; }
+[a-zA-Z_][a-zA-Z_0-9]* { yylval->string = dsc_strdup(yytext, yyextra); return TOKEN_IDENTIFIER; }
 
 -?[0-9]+				{ sscanf(yytext, "%d", &yylval->integer); return TOKEN_INTEGER; }
 -?[0-9]+"."[0-9]*		{ sscanf(yytext, "%f", &yylval->real); return TOKEN_REAL; }

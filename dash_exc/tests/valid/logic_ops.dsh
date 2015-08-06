@@ -1,0 +1,60 @@
+def main : () -> (integer)
+{
+	let true, false = 1, 0;
+
+	if (true and false)
+	{
+		print_i(0);
+	}
+	else
+	{
+		print_i(1);
+	}
+
+	if (true and true)
+	{
+		print_i(1);
+	}
+	else
+	{
+		print_i(0);
+	}
+
+	if (true or false)
+	{
+		print_i(1);
+	}
+	else
+	{
+		print_i(0);
+	}
+
+	if (true or true)
+	{
+		print_i(1);
+	}
+	else
+	{
+		print_i(0);
+	}
+
+	if (not true)
+	{
+		print_i(0);
+	}
+	else
+	{
+		print_i(1);
+	}
+
+	if (not false)
+	{
+		print_i(1);
+	}
+	else
+	{
+		print_i(0);
+	}
+
+	return 0;
+}

@@ -1,14 +1,14 @@
 %{
-	#include "../ast.h"
+	#include "../common.h"
 
 	int yylex (union YYSTYPE *yyval_param, struct YYLTYPE *yylloc_param, void *yyscanner);
-	int yyerror(struct YYLTYPE *yylloc_param, dst_proc_list **parsed_module, void *scanner, const char *msg);
+	int yyerror(struct YYLTYPE *yylloc_param, dsc_parse_context *context, void *scanner, const char *msg);
 %}
 
 %output  "parser.c"
 %defines "parser.h"
 
-%parse-param { dst_proc_list **parsed_module }
+%parse-param { dsc_parse_context *context }
 %param { void *scanner }
 
 %define api.pure full
@@ -50,17 +50,25 @@
 %token TOKEN_OP_SUB
 %token TOKEN_OP_MUL
 %token TOKEN_OP_DIV
+%token TOKEN_OP_AND
+%token TOKEN_OP_OR
+%token TOKEN_OP_NOT
+%token TOKEN_OP_EQ
 %token TOKEN_OP_LESS
 %token TOKEN_OP_LESS_EQ
 %token TOKEN_OP_GREATER
 %token TOKEN_OP_GREATER_EQ
 
 %left '='
-%left TOKEN_OP_LESS TOKEN_OP_LESS_EQ TOKEN_OP_GREATER TOKEN_OP_GREATER_EQ
+%left TOKEN_OP_EQ TOKEN_OP_LESS TOKEN_OP_LESS_EQ TOKEN_OP_GREATER TOKEN_OP_GREATER_EQ
 %left ','
+%left TOKEN_OP_AND
+%left TOKEN_OP_OR
+%left TOKEN_OP_NOT
 %left TOKEN_OP_ADD TOKEN_OP_SUB
 %left TOKEN_OP_MUL TOKEN_OP_DIV
 %precedence '(' ')'
+%precedence TOKEN_ELSE
 
 %type <type>				type
 %type <type_list>			type_list nonempty_type_list
@@ -80,7 +88,7 @@
 %%
 
 dash_module:
-	nonempty_proc_list { *parsed_module = $1; }
+	nonempty_proc_list { context->parsed_module = $1; }
 
 type:
 	TOKEN_TYPE { $$ = $1; }
@@ -91,55 +99,67 @@ identifier:
 statement:
 	TOKEN_LET nonempty_identifier_list '=' nonempty_expression_list ';'
 	{
-		$$ = dst_create_statement_definition($2, $4);
+		$$ = dst_create_statement_definition($2, $4, context->memory);
 	} |
 	nonempty_identifier_list '=' nonempty_expression_list ';'
 	{
-		$$ = dst_create_statement_assignment($1, $3);
+		$$ = dst_create_statement_assignment($1, $3, context->memory);
+	} |
+	identifier '(' expression_list ')' ';'
+	{
+		$$ = dst_create_statement_call($1, $3, context->memory);
 	} |
 	statement_block
 	{
-		$$ = dst_create_statement_block($1);
+		$$ = dst_create_statement_block($1, context->memory);
 	} |
 	TOKEN_IF '(' expression ')' statement TOKEN_ELSE statement
 	{
-		$$ = dst_create_statement_if($3, $5, $7);
+		$$ = dst_create_statement_if($3, $5, $7, context->memory);
+	} |
+	TOKEN_IF '(' expression ')' statement
+	{
+		$$ = dst_create_statement_if($3, $5, NULL, context->memory);
 	} |
 	TOKEN_WHILE '(' expression ')' statement
 	{
-		$$ = dst_create_statement_while($3, $5);
+		$$ = dst_create_statement_while($3, $5, context->memory);
 	} |
 	TOKEN_RETURN expression_list ';'
 	{
-		$$ = dst_create_statement_return($2);
+		$$ = dst_create_statement_return($2, context->memory);
 	}
 
 expression:
-	TOKEN_INTEGER									{ $$ = dst_create_exp_int($1); } |
-	TOKEN_REAL										{ $$ = dst_create_exp_real($1); } |
-	identifier										{ $$ = dst_create_exp_var($1); } |
+	TOKEN_INTEGER									{ $$ = dst_create_exp_int($1, context->memory); } |
+	TOKEN_REAL										{ $$ = dst_create_exp_real($1, context->memory); } |
+	identifier										{ $$ = dst_create_exp_var($1, context->memory); } |
 
-	expression TOKEN_OP_ADD expression				{ $$ = dst_create_exp_add($1, $3); } |
-	expression TOKEN_OP_SUB expression				{ $$ = dst_create_exp_sub($1, $3); } |
-	expression TOKEN_OP_MUL expression				{ $$ = dst_create_exp_mul($1, $3); } |
-	expression TOKEN_OP_DIV expression				{ $$ = dst_create_exp_div($1, $3); } |
+	expression TOKEN_OP_ADD expression				{ $$ = dst_create_exp_binary(dst_exp_type_addition, $1, $3, context->memory); } |
+	expression TOKEN_OP_SUB expression				{ $$ = dst_create_exp_binary(dst_exp_type_subtraction, $1, $3, context->memory); } |
+	expression TOKEN_OP_MUL expression				{ $$ = dst_create_exp_binary(dst_exp_type_multiplication, $1, $3, context->memory); } |
+	expression TOKEN_OP_DIV expression				{ $$ = dst_create_exp_binary(dst_exp_type_division, $1, $3, context->memory); } |
 	
-	expression TOKEN_OP_LESS expression				{ $$ = dst_create_exp_cmp_l($1, $3); } |
-	expression TOKEN_OP_LESS_EQ expression			{ $$ = dst_create_exp_cmp_le($1, $3); } |
-	expression TOKEN_OP_GREATER expression			{ $$ = dst_create_exp_cmp_g($1, $3); } |
-	expression TOKEN_OP_GREATER_EQ expression		{ $$ = dst_create_exp_cmp_le($1, $3); } |
+	expression TOKEN_OP_AND expression				{ $$ = dst_create_exp_binary(dst_exp_type_and, $1, $3, context->memory); } |
+	expression TOKEN_OP_OR expression				{ $$ = dst_create_exp_binary(dst_exp_type_or, $1, $3, context->memory); } |
+	TOKEN_OP_NOT expression							{ $$ = dst_create_exp_unary(dst_exp_type_not, $2, context->memory); } |
+	expression TOKEN_OP_EQ expression				{ $$ = dst_create_exp_binary(dst_exp_type_eq, $1, $3, context->memory); } |
+	expression TOKEN_OP_LESS expression				{ $$ = dst_create_exp_binary(dst_exp_type_less, $1, $3, context->memory); } |
+	expression TOKEN_OP_LESS_EQ expression			{ $$ = dst_create_exp_binary(dst_exp_type_less_eq, $1, $3, context->memory); } |
+	expression TOKEN_OP_GREATER expression			{ $$ = dst_create_exp_binary(dst_exp_type_greater, $1, $3, context->memory); } |
+	expression TOKEN_OP_GREATER_EQ expression		{ $$ = dst_create_exp_binary(dst_exp_type_greater_eq, $1, $3, context->memory); } |
 	
-	identifier '(' expression_list ')'	{ $$ = dst_create_exp_call($1, $3); } |
-	'(' type ')' expression				{ $$ = dst_create_exp_cast($2, $4); } |
+	identifier '(' expression_list ')'	{ $$ = dst_create_exp_call($1, $3, context->memory); } |
+	'(' type ')' expression				{ $$ = dst_create_exp_cast($2, $4, context->memory); } |
 	'(' expression ')'					{ $$ = $2; }
 		
 proc_param:
-	identifier ':' type { $$ = dst_create_func_param($1, $3); }
+	identifier ':' type { $$ = dst_create_proc_param($1, $3, context->memory); }
 
 proc:
 	TOKEN_DEF identifier ':' '(' proc_param_list ')' TOKEN_ARROW '(' type_list ')' statement
 	{
-		$$ = dst_create_func($2, $5, $9, $11);
+		$$ = dst_create_proc($2, $5, $9, $11, context->memory);
 	}
 		
 statement_block:
@@ -159,41 +179,36 @@ proc_param_list:
 	nonempty_proc_param_list	{ $$ = $1; }
 
 nonempty_statement_block:
-	statement								{ $$ = dst_append_statement_list(NULL, $1); } |
-	nonempty_statement_block statement		{ $$ = dst_append_statement_list($1, $2); }
+	statement								{ $$ = dst_append_statement_list(NULL, $1, context->memory); } |
+	nonempty_statement_block statement		{ $$ = dst_append_statement_list($1, $2, context->memory); }
 
 nonempty_expression_list:
-	expression								{ $$ = dst_append_exp_list(NULL, $1); } |
-	nonempty_expression_list ',' expression	{ $$ = dst_append_exp_list($1, $3); }
+	expression								{ $$ = dst_append_exp_list(NULL, $1, context->memory); } |
+	nonempty_expression_list ',' expression	{ $$ = dst_append_exp_list($1, $3, context->memory); }
 	
 nonempty_type_list:
-	type						{ $$ = dst_append_type_list(NULL, $1); } |
-	nonempty_type_list ',' type { $$ = dst_append_type_list($1, $3); }
+	type						{ $$ = dst_append_type_list(NULL, $1, context->memory); } |
+	nonempty_type_list ',' type { $$ = dst_append_type_list($1, $3, context->memory); }
 	
 nonempty_proc_param_list:
-	proc_param									{ $$ = dst_append_func_param_list(NULL, $1); } |
-	nonempty_proc_param_list ',' proc_param		{ $$ = dst_append_func_param_list($1, $3); }
+	proc_param									{ $$ = dst_append_func_param_list(NULL, $1, context->memory); } |
+	nonempty_proc_param_list ',' proc_param		{ $$ = dst_append_func_param_list($1, $3, context->memory); }
 
 nonempty_identifier_list:
-	identifier								{ $$ = dst_append_id_list(NULL, $1); } |
-	nonempty_identifier_list ',' identifier { $$ = dst_append_id_list($1, $3); }
+	identifier								{ $$ = dst_append_id_list(NULL, $1, context->memory); } |
+	nonempty_identifier_list ',' identifier { $$ = dst_append_id_list($1, $3, context->memory); }
 	
 nonempty_proc_list:
-	proc						{ $$ = dst_append_func_list(NULL, $1); } |
-	nonempty_proc_list proc		{ $$ = dst_append_func_list($1, $2); }
+	proc						{ $$ = dst_append_func_list(NULL, $1, context->memory); } |
+	nonempty_proc_list proc		{ $$ = dst_append_func_list($1, $2, context->memory); }
 
 %%
 
 #include <stdio.h>
 
-int yyerror(struct YYLTYPE *yylloc_param, dst_proc_list **parsed_module, void *scanner, const char *msg)
+int yyerror(struct YYLTYPE *yylloc_param, dsc_parse_context *context, void *scanner, const char *msg)
 {
-    fprintf(stderr, "error (%d:%d) - (%d:%d): %s\n",
-		yylloc_param->first_line,
-		yylloc_param->first_column, 
-		yylloc_param->last_line,
-		yylloc_param->last_column,
-		msg);
+	dsc_error("syntax error (%d)", yylloc_param->first_line);
 
 	return 0;
 }

@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
+
+// stdlib
+
+int dvm_create_stdlib(dvm_context *context);
 
 // interface
 
@@ -13,10 +18,10 @@ int		dvm_create_context(dvm_context **context, size_t initial_function_capacity,
 
 	if (result == NULL)
 		return 0;
-
-	result->function_capacity = initial_function_capacity;
+	
+	result->function_capacity = initial_function_capacity + 7;
 	result->function_count = 0;
-	result->function = (dvm_procedure *)malloc(sizeof(dvm_procedure) * initial_function_capacity);
+	result->function = (dvm_procedure *)malloc(sizeof(dvm_procedure) * result->function_capacity);
 
 	if (result->function == NULL)
 	{
@@ -34,6 +39,12 @@ int		dvm_create_context(dvm_context **context, size_t initial_function_capacity,
 		return 0;
 	}
 
+	if (!dvm_create_stdlib(result))
+	{
+		dvm_destroy_context(result);
+		return 0;
+	}
+	
 	*context = result;
 
 	return 1;
@@ -53,13 +64,15 @@ void	dvm_destroy_context(dvm_context *context)
 	free(context);
 }
 
-dvm_procedure	*dvm_find_proc(const char *name, dvm_context *context)
+dvm_procedure	*dvm_find_proc(const char *name, size_t in_registers, size_t out_registers, dvm_context *context)
 {
 	uint32_t hashed_name = dsh_hash(name);
 
 	for (size_t i = 0; i < context->function_count; ++i)
 	{
-		if (context->function[i].hashed_name == hashed_name)
+		if (context->function[i].hashed_name == hashed_name &&
+			context->function[i].reg_count_in == in_registers &&
+			context->function[i].reg_count_out == out_registers)
 			return &context->function[i];
 	}
 
@@ -89,7 +102,7 @@ void			 dvm_dissasm_proc(dvm_procedure *function, FILE *out, dvm_context *contex
 			break;
 
 		case dvm_opcode_call:
-			fprintf(out, "call  func[%u] i%u o%u\n", bc.a, bc.b, bc.c);
+			fprintf(out, "call  func[%u] r%u -> r%u\n", bc.a, bc.b, bc.c);
 			break;
 
 		case dvm_opcode_ret:
@@ -106,6 +119,26 @@ void			 dvm_dissasm_proc(dvm_procedure *function, FILE *out, dvm_context *contex
 				*(int32_t *)(&context->bytecode[cur_pc]),
 				*(float *)(&context->bytecode[cur_pc]),
 				bc.c);
+			break;
+
+		case dvm_opcode_and:
+			fprintf(out, "and  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+			break;
+
+		case dvm_opcode_or:
+			fprintf(out, "or  r%u, r%u -> r%u\n", bc.a, bc.b, bc.c);
+			break;
+
+		case dvm_opcode_not:
+			fprintf(out, "not  r%u -> r%u\n", bc.a, bc.c);
+			break;
+			
+		case dvm_opcode_cmpi_e:
+			fprintf(out, "cmpi  r%u = r%u -> r%u\n", bc.a, bc.b, bc.c);
+			break;
+
+		case dvm_opcode_cmpf_e:
+			fprintf(out, "cmpi  r%u = r%u -> r%u\n", bc.a, bc.b, bc.c);
 			break;
 
 		case dvm_opcode_cmpi_l:
@@ -350,4 +383,82 @@ dvm_procedure	*dvm_proc_emitter_finalize(const char *name, uint8_t reg_count_in,
 void			 dvm_proc_emitter_cancel(dvm_procedure_emitter *procgen)
 {
 	dvm_context_pop_bytecode(procgen->bytecode_allocated, procgen->context);
+}
+
+// std lib
+
+void dvm_stdlib_print_c(const dvm_var *in, dvm_var *out)
+{
+	fprintf(stdout, "%c\n", (char)in[0].i);
+}
+void dvm_stdlib_print_i(const dvm_var *in, dvm_var *out)
+{
+	fprintf(stdout, "%d\n", in[0].i);
+}
+void dvm_stdlib_print_r(const dvm_var *in, dvm_var *out)
+{
+	fprintf(stdout, "%f\n", in[0].f);
+}
+void dvm_stdlib_sin(const dvm_var *in, dvm_var *out)
+{
+	out[0].f = (float)sin(in[0].f);
+}
+void dvm_stdlib_cos(const dvm_var *in, dvm_var *out)
+{
+	out[0].f = (float)cos(in[0].f);
+}
+void dvm_stdlib_tan(const dvm_var *in, dvm_var *out)
+{
+	out[0].f = (float)tan(in[0].f);
+}
+void dvm_stdlib_pow(const dvm_var *in, dvm_var *out)
+{
+	out[0].f = (float)pow(in[0].f, in[1].f);
+}
+
+int dvm_create_stdlib(dvm_context *context)
+{
+	dvm_procedure *stdlib = dvm_context_push_procedure(7, context);
+
+	if (stdlib == NULL)
+	{
+		return 0;
+	}
+
+	stdlib[0].c_function = dvm_stdlib_print_c;
+	stdlib[0].reg_count_in = 1;
+	stdlib[0].reg_count_use = 0;
+	stdlib[0].reg_count_out = 0;
+
+	stdlib[1].c_function = dvm_stdlib_print_i;
+	stdlib[1].reg_count_in = 1;
+	stdlib[1].reg_count_use = 0;
+	stdlib[1].reg_count_out = 0;
+
+	stdlib[2].c_function = dvm_stdlib_print_r;
+	stdlib[2].reg_count_in = 1;
+	stdlib[2].reg_count_use = 0;
+	stdlib[2].reg_count_out = 0;
+
+	stdlib[3].c_function = dvm_stdlib_sin;
+	stdlib[3].reg_count_in = 1;
+	stdlib[3].reg_count_use = 0;
+	stdlib[3].reg_count_out = 1;
+
+	stdlib[4].c_function = dvm_stdlib_cos;
+	stdlib[4].reg_count_in = 1;
+	stdlib[4].reg_count_use = 0;
+	stdlib[4].reg_count_out = 1;
+
+	stdlib[5].c_function = dvm_stdlib_tan;
+	stdlib[5].reg_count_in = 1;
+	stdlib[5].reg_count_use = 0;
+	stdlib[5].reg_count_out = 1;
+
+	stdlib[6].c_function = dvm_stdlib_pow;
+	stdlib[6].reg_count_in = 2;
+	stdlib[6].reg_count_use = 0;
+	stdlib[6].reg_count_out = 1;
+
+	return 1;
 }

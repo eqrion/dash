@@ -3,13 +3,37 @@
 
 #include "../../hash.h"
 #include "../../vm_internal.h"
-#include "../ast.h"
+#include "../common.h"
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 #include <time.h>
+
+struct dcg_proc_decl
+{
+	const char			*id;
+	dst_proc_param_list *in_params;
+	dst_type_list		*out_types;
+	size_t				 index;
+};
+struct dcg_proc_decl_list
+{
+	struct dcg_proc_decl *value;
+
+	struct dcg_proc_decl_list *prev;
+	struct dcg_proc_decl_list *next;
+};
+typedef struct dcg_proc_decl dcg_proc_decl;
+typedef struct dcg_proc_decl_list dcg_proc_decl_list;
+
+dcg_proc_decl_list *dcg_append_proc_decl_list(dcg_proc_decl_list *list, dcg_proc_decl *value, dsc_memory *mem);
+
+dcg_proc_decl *dcg_create_proc_decl(const char *id, dst_proc_param_list *in_params, dst_type_list *out_types, size_t index, dsc_memory *mem);
+
+dcg_proc_decl *dcg_proc_decl_list_find(const char *id, dcg_proc_decl_list *list);
+
 
 struct dcg_var_binding
 {
@@ -25,6 +49,8 @@ struct dcg_register_allocator
 
 	size_t					named_vars_capacity;
 	struct dcg_var_binding *named_vars;
+
+	dsc_memory *mem;
 };
 struct dcg_bc_emitter
 {
@@ -34,17 +60,12 @@ typedef struct dcg_var_binding dcg_var_binding;
 typedef struct dcg_register_allocator dcg_register_allocator;
 typedef struct dcg_bc_emitter dcg_bc_emitter;
 
-inline int get_error_code()
-{
-	/* ;) */
-	return (rand() % 2000) + 2555;
-}
-
 int	dcg_start_proc_emit(
 	size_t initial_var_capacity,
 	dcg_register_allocator *reg_alloc,
 	dcg_bc_emitter *bc_emit,
-	dvm_context *vm);
+	dvm_context *vm,
+	dsc_memory *mem);
 int dcg_finalize_proc_emit(
 	dst_proc *ast_proc,
 	dcg_register_allocator *reg_alloc,

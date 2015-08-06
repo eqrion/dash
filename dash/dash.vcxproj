@@ -13,6 +13,8 @@
   <ItemGroup>
     <ClInclude Include="src\compiler\backend\codegen.h" />
     <ClInclude Include="src\compiler\backend\common.h" />
+    <ClInclude Include="src\compiler\common.h" />
+    <ClInclude Include="src\compiler\memory.h" />
     <ClInclude Include="src\vm_internal.h" />
     <ClInclude Include="src\hash.h" />
     <ClInclude Include="include\dash\var.h" />
@@ -30,6 +32,7 @@
     <ClCompile Include="src\compiler\import.c" />
     <ClCompile Include="src\compiler\frontend\lexer.c" />
     <ClCompile Include="src\compiler\frontend\parser.c" />
+    <ClCompile Include="src\compiler\memory.c" />
     <ClCompile Include="src\vm\exec.c" />
     <ClCompile Include="src\vm\manage.c" />
     <ClCompile Include="src\vm\module.c" />

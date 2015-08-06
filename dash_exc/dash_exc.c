@@ -1,63 +1,71 @@
 #include "dash/vm.h"
 
 #include <stdio.h>
+#include <string.h>
 
 int main(int argc, char **argv)
 {
-	if (argc != 2)
+	if (argc != 2 && argc != 3)
 	{
-		printf("dash compiler\nusage:\n\tdash_compiler <src_filename>\n");
+		printf("dash\nusage:\n\tdash [-d] <src_filename>\n");
+		return 1;
+	}
+
+	if (argc == 3 && strcmp(argv[1], "-d") != 0)
+	{
+		printf("dash\nusage:\n\tdash [-d] <src_filename>\n");
 		return 1;
 	}
 
 	struct dvm_context *context = NULL;
 
-	if (!dvm_create_context(&context, 1, 64))
+	if (!dvm_create_context(&context, 4, 128))
 	{
-		fprintf(stderr, "error initializing dash.");
+		fprintf(stderr, "error initializing dash.\n");
 		return 1;
 	}
 
-	if (dvm_import_source(argv[1], context))
+	if (!dvm_import_source(argc == 2 ? argv[1] : argv[2], context))
 	{
-		/*for (int n = 0; n <= 10; ++n)
-		{
-			dvm_var in[1];
-			dvm_var out[1];
+		dvm_destroy_context(context);
 
-			in[0].i = n;
+		fprintf(stderr, "compilation error.\n");
+		return 1;
+	}
 
-			if (dvm_exec_proc(func, in, out, context))
-			{
-				printf("fib(%d) = %d\n", in[0].i, out[0].i);
-			}
-			else
-			{
-				fprintf(stderr, "execution error\n");
-				break;
-			}
-		}*/
+	struct dvm_procedure *func = dvm_find_proc("main", 0, 1, context);
+	
+	if (func == NULL)
+	{
+		dvm_destroy_context(context);
 
-		struct dvm_procedure *func = dvm_find_proc("test", context);
+		fprintf(stderr, "couldn't find a main function.\n");
+		return 1;
+	}
+	
+	if (argc == 3)
+	{
+		fprintf(stdout, "\n");
 		dvm_dissasm_proc(func, stdout, context);
-
-		printf("\n");
-
+	}
+	else
+	{
 		dvm_var out[1];
 
 		if (dvm_exec_proc(func, NULL, out, context))
 		{
-			printf("test = %d\n", out[0].i);
+			fprintf(stdout, "main returned with %d.\n", out[0].i);
 		}
 		else
 		{
-			fprintf(stderr, "execution error\n");
+			fprintf(stderr, "execution error.\n");
 		}
 	}
-	else
-	{
-		fprintf(stderr, "compilation error\n");
-	}
+
+	dvm_destroy_context(context);
+	
+	_CrtCheckMemory();
+	_CrtDumpMemoryLeaks();
 
 	return 0;
 }

@@ -91,43 +91,54 @@ int dvm_exec_proc(struct dvm_procedure *function, const dvm_var *func_parameters
 
 			dvm_var *reg_in_start = &stack.reg_current[instruction.b];
 
-			// Push space for an activation record
-
-			if (!dvm_stack_push(&stack, 4))
+			if (next_func->c_function != NULL)
 			{
-				fprintf(stderr, "stack overflow error.\n");
-				goto execution_error;
+				dvm_var *reg_out_start = &stack.reg_current[instruction.c];
+
+				next_func->c_function(reg_in_start, reg_out_start);
+			}
+			else
+			{
+				// Push space for an activation record
+
+				if (!dvm_stack_push(&stack, 4))
+				{
+					fprintf(stderr, "stack overflow error.\n");
+					goto execution_error;
+				}
+
+				stack.reg_current[0].u = cur_frame_size;
+				stack.reg_current[1].u = cur_func_index;
+				stack.reg_current[2].u = instruction.c;
+				stack.reg_current[3].u = cur_pc;
+
+				// Switch to the new function
+
+				cur_func_index = instruction.a;
+				cur_func = next_func;
+				cur_pc = next_func->bytecode_start;
+				cur_frame_size = next_func->reg_count_in + next_func->reg_count_use;
+
+				if (!dvm_stack_push(&stack, cur_frame_size))
+				{
+					fprintf(stderr, "stack overflow error.\n");
+					goto execution_error;
+				}
+
+				// Copy the parameters over
+
+				memcpy(
+					stack.reg_current,
+					reg_in_start,
+					sizeof(dvm_var) * cur_func->reg_count_in
+					);
+
+				// Skip over the pc increment and continue on
+
+				continue;
 			}
 
-			stack.reg_current[0].u = cur_frame_size;
-			stack.reg_current[1].u = cur_func_index;
-			stack.reg_current[2].u = instruction.c;
-			stack.reg_current[3].u = cur_pc;
-
-			// Switch to the new function
-
-			cur_func_index = instruction.a;
-			cur_func = next_func;
-			cur_pc = next_func->bytecode_start;
-			cur_frame_size = next_func->reg_count_in + next_func->reg_count_use;
-
-			if (!dvm_stack_push(&stack, cur_frame_size))
-			{
-				fprintf(stderr, "stack overflow error.\n");
-				goto execution_error;
-			}
-
-			// Copy the parameters over
-
-			memcpy(
-				stack.reg_current,
-				reg_in_start,
-				sizeof(dvm_var) * cur_func->reg_count_in
-				);
-
-			// Skip over the pc increment and continue on
-
-			continue;
+			break;
 		}
 		case dvm_opcode_ret:
 		{
@@ -225,6 +236,68 @@ int dvm_exec_proc(struct dvm_procedure *function, const dvm_var *func_parameters
 			}
 
 			stack.reg_current[instruction.c].u = *(uint32_t *)(context->bytecode + cur_pc);
+
+			break;
+		}
+
+		case dvm_opcode_and:
+		{
+			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[instruction.c].i = stack.reg_current[instruction.a].i & stack.reg_current[instruction.b].i;
+
+			break;
+		}
+		case dvm_opcode_or:
+		{
+			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[instruction.c].i = stack.reg_current[instruction.a].i | stack.reg_current[instruction.b].i;
+
+			break;
+		}
+		case dvm_opcode_not:
+		{
+			if (instruction.a >= cur_frame_size || instruction.c >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[instruction.c].i = !stack.reg_current[instruction.a].i;
+
+			break;
+		}
+
+		case dvm_opcode_cmpi_e:
+		{
+			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[instruction.c].i = stack.reg_current[instruction.a].i == stack.reg_current[instruction.b].i;
+
+			break;
+		}
+		case dvm_opcode_cmpf_e:
+		{
+			if (instruction.a >= cur_frame_size || instruction.b >= cur_frame_size || instruction.c >= cur_frame_size)
+			{
+				fprintf(stderr, "register out of bounds error.\n");
+				goto execution_error;
+			}
+
+			stack.reg_current[instruction.c].i = stack.reg_current[instruction.a].f == stack.reg_current[instruction.b].f;
 
 			break;
 		}

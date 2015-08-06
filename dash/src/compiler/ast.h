@@ -2,6 +2,7 @@
 #define dash_dst_h
 
 #include <stdint.h>
+#include "memory.h"
 
 enum dst_type
 {
@@ -14,6 +15,8 @@ enum dst_statement_type
 	dst_statement_type_definition,
 	dst_statement_type_assignment,
 	
+	dst_statement_type_call,
+
 	dst_statement_type_block,
 	dst_statement_type_if,
 	dst_statement_type_while,
@@ -78,6 +81,11 @@ enum dst_exp_type
 	dst_exp_type_multiplication,
 	dst_exp_type_division,
 
+	dst_exp_type_and,
+	dst_exp_type_or,
+	dst_exp_type_not,
+
+	dst_exp_type_eq,
 	dst_exp_type_less,
 	dst_exp_type_less_eq,
 	dst_exp_type_greater,
@@ -114,9 +122,14 @@ struct dst_exp
 
 		struct
 		{
+			struct dst_exp *value;
+		} unary;
+
+		struct
+		{
 			struct dst_exp *left;
 			struct dst_exp *right;
-		} operator;
+		} binary;
 
 		struct
 		{
@@ -204,48 +217,31 @@ static dst_type_list dst_sentinel_type_integer = { dst_type_integer, &dst_sentin
 
 /* Constructors, Destructors, Accessors */
 
-dst_statement *dst_create_statement_definition(dst_id_list *variables, dst_exp_list *assignments);
-dst_statement *dst_create_statement_assignment(dst_id_list *variables, dst_exp_list *assignments);
-dst_statement *dst_create_statement_block(dst_statement_list *statements);
-dst_statement *dst_create_statement_if(dst_exp *condition, dst_statement *true_statement, dst_statement *false_statement);
-dst_statement *dst_create_statement_while(dst_exp *condition, dst_statement *loop_statement);
-dst_statement *dst_create_statement_return(dst_exp_list *value);
+dst_statement *dst_create_statement_definition(dst_id_list *variables, dst_exp_list *assignments, dsc_memory *mem);
+dst_statement *dst_create_statement_assignment(dst_id_list *variables, dst_exp_list *assignments, dsc_memory *mem);
+dst_statement *dst_create_statement_call(char *function, dst_exp_list *parameters, dsc_memory *mem);
+dst_statement *dst_create_statement_block(dst_statement_list *statements, dsc_memory *mem);
+dst_statement *dst_create_statement_if(dst_exp *condition, dst_statement *true_statement, dst_statement *false_statement, dsc_memory *mem);
+dst_statement *dst_create_statement_while(dst_exp *condition, dst_statement *loop_statement, dsc_memory *mem);
+dst_statement *dst_create_statement_return(dst_exp_list *value, dsc_memory *mem);
 
-dst_exp *dst_create_exp_var(char *value);
-dst_exp *dst_create_exp_int(int value);
-dst_exp *dst_create_exp_real(float value);
-dst_exp *dst_create_exp_cast(dst_type dest_type, dst_exp *value);
-dst_exp *dst_create_exp_add(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_sub(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_mul(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_div(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_cmp_l(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_cmp_le(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_cmp_g(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_cmp_ge(dst_exp *left, dst_exp *right);
-dst_exp *dst_create_exp_call(char *function, dst_exp_list *parameters);
+dst_exp *dst_create_exp_var(char *value, dsc_memory *mem);
+dst_exp *dst_create_exp_int(int value, dsc_memory *mem);
+dst_exp *dst_create_exp_real(float value, dsc_memory *mem);
+dst_exp *dst_create_exp_cast(dst_type dest_type, dst_exp *value, dsc_memory *mem);
+dst_exp *dst_create_exp_binary(dst_exp_type type, dst_exp *left, dst_exp *right, dsc_memory *mem);
+dst_exp *dst_create_exp_unary(dst_exp_type type, dst_exp *value, dsc_memory *mem);
+dst_exp *dst_create_exp_call(char *function, dst_exp_list *parameters, dsc_memory *mem);
 
-dst_proc_param	*dst_create_func_param(char *id, dst_type type);
-dst_proc		*dst_create_func(char *id, dst_proc_param_list *in_params, dst_type_list *out_types, dst_statement *statement);
+dst_proc_param	*dst_create_proc_param(char *id, dst_type type, dsc_memory *mem);
+dst_proc		*dst_create_proc(char *id, dst_proc_param_list *in_params, dst_type_list *out_types, dst_statement *statement, dsc_memory *mem);
 
-void	dst_destroy_statement(dst_statement *statement);
-void	dst_destroy_exp(dst_exp *exp);
-void	dst_destroy_func_param(dst_proc_param *func_param);
-void	dst_destroy_func(dst_proc *func);
-
-dst_type_list		*dst_append_type_list(dst_type_list *list, dst_type value);
-dst_id_list			*dst_append_id_list(dst_id_list *list, char *value);
-dst_statement_list	*dst_append_statement_list(dst_statement_list *list, dst_statement *value);
-dst_exp_list		*dst_append_exp_list(dst_exp_list *list, dst_exp *value);
-dst_proc_param_list	*dst_append_func_param_list(dst_proc_param_list *list, dst_proc_param *value);
-dst_proc_list		*dst_append_func_list(dst_proc_list *list, dst_proc *value);
-
-void			 dst_destroy_type_list(dst_type_list *list);
-void			 dst_destroy_id_list(dst_id_list *list);
-void			 dst_destroy_statement_list(dst_statement_list *list);
-void			 dst_destroy_exp_list(dst_exp_list *list);
-void			 dst_destroy_func_param_list(dst_proc_param_list *list);
-void			 dst_destroy_func_list(dst_proc_list *list);
+dst_type_list		*dst_append_type_list(dst_type_list *list, dst_type value, dsc_memory *mem);
+dst_id_list			*dst_append_id_list(dst_id_list *list, char *value, dsc_memory *mem);
+dst_statement_list	*dst_append_statement_list(dst_statement_list *list, dst_statement *value, dsc_memory *mem);
+dst_exp_list		*dst_append_exp_list(dst_exp_list *list, dst_exp *value, dsc_memory *mem);
+dst_proc_param_list	*dst_append_func_param_list(dst_proc_param_list *list, dst_proc_param *value, dsc_memory *mem);
+dst_proc_list		*dst_append_func_list(dst_proc_list *list, dst_proc *value, dsc_memory *mem);
 
 size_t dst_exp_list_count(dst_exp_list *list);
 size_t dst_type_list_count(dst_type_list *list);
@@ -254,23 +250,5 @@ size_t dst_proc_param_list_count(dst_proc_param_list *list);
 int dst_type_list_is_integer(dst_type_list *list);
 int dst_type_list_is_real(dst_type_list *list);
 int dst_type_list_is_composite(dst_type_list *list);
-
-void dst_proc_list_find(const char *id, dst_proc_list *list, dst_proc **out_val, size_t *out_index);
-
-/* Printing */
-
-void dst_print_type(dst_type type, int tab_level);
-void dst_print_id(char *id, int tab_level);
-void dst_print_statement(dst_statement *statement, int tab_level);
-void dst_print_exp(dst_exp *exp, int tab_level);
-void dst_print_func_param(dst_proc_param *function_param, int tab_level);
-void dst_print_func(dst_proc *function);
-
-void dst_print_type_list(dst_type_list *list, int tab_level);
-void dst_print_id_list(dst_id_list *list, int tab_level);
-void dst_print_statement_list(dst_statement_list *list, int tab_level);
-void dst_print_exp_list(dst_exp_list *list, int tab_level);
-void dst_print_func_param_list(dst_proc_param_list *list, int tab_level);
-void dst_print_func_list(dst_proc_list *list);
 
 #endif
