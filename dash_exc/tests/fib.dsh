@@ -1,0 +1,38 @@
+def fib_lin : (n : integer) -> (integer)
+{
+	let x = 2;
+	let fib_x_minus2, fib_x_minus1 = 1, 1;
+
+	while (x <= n)
+	{
+		let temp = fib_x_minus1;
+		fib_x_minus1 = fib_x_minus1 + fib_x_minus2;
+		fib_x_minus2 = temp;
+
+		x = x + 1;
+	}
+
+	return fib_x_minus1;
+}
+
+def fib_rec : (n : integer) -> (integer)
+{
+	if (n <= 2)
+		return 1;
+	else
+		return fib(n - 1) + fib(n - 2);
+}
+
+def main : () -> (integer)
+{
+	let i = 1;
+
+	while (i <= 16)
+	{
+		print_i(fib_lin(i));
+
+		i = i + 1;
+	}
+
+	return 0;
+}

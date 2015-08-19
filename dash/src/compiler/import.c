@@ -83,7 +83,7 @@ dcg_proc_decl_list *import_stdlib_decls(dsc_memory *mem)
 	return stdlib;
 }
 
-int dvm_import_source(const char *source_file, struct dvm_context *context)
+int dvm_import_source(FILE *source_file, struct dvm_context *context)
 {
 	srand((unsigned int)time(NULL));
 
@@ -94,20 +94,11 @@ int dvm_import_source(const char *source_file, struct dvm_context *context)
 		return 0;
 	}
 
-	FILE *source = fopen(source_file, "rb");
-	if (source == NULL)
-	{
-		yylex_destroy(scanner);
-
-		dsc_error("couldn't open source file %s", source_file);
-		return 0;
-	}
-	yyset_in(source, scanner);
+	yyset_in(source_file, scanner);
 
 	dsc_memory mem;
 	if (!dsc_create(0, &mem))
 	{
-		fclose(source);
 		yylex_destroy(scanner);
 
 		dsc_error_oom();
@@ -128,7 +119,6 @@ int dvm_import_source(const char *source_file, struct dvm_context *context)
 		{
 			dsc_destroy(&mem);
 
-			fclose(source);
 			yylex_destroy(scanner);
 
 			return 0;
@@ -137,7 +127,6 @@ int dvm_import_source(const char *source_file, struct dvm_context *context)
 		{
 			dsc_destroy(&mem);
 
-			fclose(source);
 			yylex_destroy(scanner);
 
 			return 1;
@@ -146,7 +135,6 @@ int dvm_import_source(const char *source_file, struct dvm_context *context)
 
 	dsc_destroy(&mem);
 
-	fclose(source);
 	yylex_destroy(scanner);
 	
 	return 0;

@@ -34,7 +34,7 @@ dst_statement *dst_create_statement_assignment(dst_id_list *variables, dst_exp_l
 }
 dst_statement *dst_create_statement_call(char *function, dst_exp_list *parameters, dsc_memory *mem)
 {
-	if (function == NULL || parameters == NULL)
+	if (function == NULL)
 		return NULL;
 
 	dst_statement *statement = (dst_statement *)dsc_alloc(sizeof(dst_statement), mem);
@@ -62,7 +62,7 @@ dst_statement *dst_create_statement_block(dst_statement_list *statements, dsc_me
 }
 dst_statement *dst_create_statement_if(dst_exp *condition, dst_statement *true_statement, dst_statement *false_statement, dsc_memory *mem)
 {
-	if (condition == NULL || true_statement == NULL || false_statement == NULL)
+	if (condition == NULL || true_statement == NULL)
 		return NULL;
 
 	dst_statement *statement = (dst_statement *)dsc_alloc(sizeof(dst_statement), mem);
@@ -95,9 +95,6 @@ dst_statement *dst_create_statement_while(dst_exp *condition, dst_statement *loo
 }
 dst_statement *dst_create_statement_return(dst_exp_list *values, dsc_memory *mem)
 {
-	if (values == NULL)
-		return NULL;
-
 	dst_statement *statement = (dst_statement *)dsc_alloc(sizeof(dst_statement), mem);
 
 	if (statement == NULL)

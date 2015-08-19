@@ -208,7 +208,7 @@ nonempty_proc_list:
 
 int yyerror(struct YYLTYPE *yylloc_param, dsc_parse_context *context, void *scanner, const char *msg)
 {
-	dsc_error("syntax error (%d)", yylloc_param->first_line);
+	dsc_error("syntax error on line: %d", yylloc_param->first_line);
 
 	return 0;
 }

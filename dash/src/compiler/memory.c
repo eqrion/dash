@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
 void *dsc_alloc(size_t size, dsc_memory *mem)
 {
@@ -10,6 +11,7 @@ void *dsc_alloc(size_t size, dsc_memory *mem)
 
 	if (new_top > (uintptr_t)mem->stack_end)
 	{
+		fprintf(stderr, "ran out of memory!");
 		return NULL;
 	}
 

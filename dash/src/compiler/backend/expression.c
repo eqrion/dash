@@ -460,6 +460,7 @@ int dcg_import_expression(
 
 		if (next_proc == NULL)
 		{
+			dsc_error("invalid call expression, cannot find procedure %s.", exp->call.function);
 			return 0;
 		}
 

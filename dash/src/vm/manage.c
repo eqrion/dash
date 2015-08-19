@@ -78,6 +78,15 @@ dvm_procedure	*dvm_find_proc(const char *name, size_t in_registers, size_t out_r
 
 	return NULL;
 }
+
+void			 dvm_dissasm_module(FILE *out, struct dvm_context *context)
+{
+	for (uint32_t i = 7; i < context->function_count; ++i)
+	{
+		dvm_dissasm_proc(&context->function[i], out, context);
+		printf("\n");
+	}
+}
 void			 dvm_dissasm_proc(dvm_procedure *function, FILE *out, dvm_context *context)
 {
 	if (function->c_function != NULL)
@@ -389,7 +398,7 @@ void			 dvm_proc_emitter_cancel(dvm_procedure_emitter *procgen)
 
 void dvm_stdlib_print_c(const dvm_var *in, dvm_var *out)
 {
-	fprintf(stdout, "%c\n", (char)in[0].i);
+	fprintf(stdout, "%c", (char)in[0].i);
 }
 void dvm_stdlib_print_i(const dvm_var *in, dvm_var *out)
 {
